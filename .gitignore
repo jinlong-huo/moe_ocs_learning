@@ -22,6 +22,18 @@ outputs/traces/merged_*.json
 *.pt
 *.pth
 
+# Generated/exported model artifacts (too large for git)
+exported_qwen_weights/
+exported_qwen_weights_lora/
+adapters/
+models
+
+# Runtime logs
+logs/
+
+# Generated comparison reports
+outputs/traces/ocs_comparison/
+
 # Virtual environments
 venv/
 .venv/

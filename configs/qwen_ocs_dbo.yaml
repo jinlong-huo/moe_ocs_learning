@@ -1,0 +1,19 @@
+# Qwen + OCS DBO (Dual-Batch Overlap): real weights + real routing + lookahead.
+#
+# Pre-establishes circuits for micro-batch K+1 during batch K's compute,
+# fully hiding reconfig cost behind computation. Requires >= 3 microbatches.
+#
+# Run:
+#   python3 -m src.launcher --config configs/qwen_ocs_dbo.yaml
+
+extends: qwen_ocs_base
+
+runtime:
+  mode: "ocs_dbo"
+  num_steps: 5
+
+data:
+  num_microbatches: 4       # >= 3 needed for full DBO pipeline benefit
+
+ocs:
+  reconfig_time_us: 100.0   # Higher reconfig time → DBO benefit more visible

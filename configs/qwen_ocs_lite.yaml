@@ -1,0 +1,31 @@
+# Lightweight Qwen + OCS: fewer experts (8), faster iteration.
+#
+# Uses only 8 of 256 experts (2 per rank) with real Qwen weights.
+# Good for quick verification before scaling to 32 experts.
+#
+# Run:
+#   python3 -m src.launcher --config configs/qwen_ocs_lite.yaml
+
+extends: qwen_ocs_base
+
+model:
+  num_experts: 8             # 8 experts total (2 per rank on 4 ranks)
+  experts_per_rank: 2
+  top_k: 2
+
+qwen:
+  num_experts: 8             # Slice gate to 8 experts
+  top_k: 2
+
+ocs:
+  max_circuits: 8            # 8 circuit slots (matching expert count)
+  reconfig_time_us: 50.0
+
+runtime:
+  mode: "ocs_pipeline"
+  num_steps: 3
+
+data:
+  batch_size: 1
+  seq_len: 64
+  num_microbatches: 2

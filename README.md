@@ -19,6 +19,26 @@ python3 -m src.launcher --config configs/ocs_demo.yaml
 # OCS vs EPS comparison (overlap pipeline, different transport)
 python scripts/compare_ocs.py
 
+# --- Real Qwen MoE weights + OCS (authentic model weights, requires export first) ---
+
+# Export Qwen expert weights (one-time setup)
+python3 scripts/export_qwen_experts.py \
+    --model models/Qwen3.6-35B-A3B-4bit \
+    --output exported_qwen_weights --max-layers 1
+
+# Capture routing trace from real model
+python moe_run.py --model models/Qwen3.6-35B-A3B-4bit \
+    --prompt "Explain MoE routing." --max-tokens 128
+
+# Qwen + OCS lite (8 experts, fast verification)
+python3 -m src.launcher --config configs/qwen_ocs_lite.yaml
+
+# Qwen + OCS pipeline (32 experts, full experiment)
+python3 -m src.launcher --config configs/qwen_ocs_pipeline.yaml
+
+# Qwen + OCS DBO (dual-batch overlap, lookahead)
+python3 -m src.launcher --config configs/qwen_ocs_dbo.yaml
+
 # View results
 open outputs/traces/trace_viewer.html    # interactive HTML (click "EP Layout")
 open outputs/traces/ocs_view.html        # OCS circuit analysis
@@ -58,28 +78,28 @@ Constraint: num_experts = world_size * experts_per_rank
 **4-rank example** (8 experts, 2/rank):
 
 | Rank | Experts |
-|------|---------|
-| 0 | 0, 1 |
-| 1 | 2, 3 |
-| 2 | 4, 5 |
-| 3 | 6, 7 |
+| ---- | ------- |
+| 0    | 0, 1    |
+| 1    | 2, 3    |
+| 2    | 4, 5    |
+| 3    | 6, 7    |
 
 **16-GPU cluster** (64 experts, 4/rank, `realistic_16gpu.yaml`):
 
 | Pod | Node | Ranks | Experts |
-|-----|------|-------|---------|
-| 0 | 0 | 0-3 | 0-15 |
-| 0 | 1 | 4-7 | 16-31 |
-| 1 | 0 | 8-11 | 32-47 |
-| 1 | 1 | 12-15 | 48-63 |
+| --- | ---- | ----- | ------- |
+| 0   | 0    | 0-3   | 0-15    |
+| 0   | 1    | 4-7   | 16-31   |
+| 1   | 0    | 8-11  | 32-47   |
+| 1   | 1    | 12-15 | 48-63   |
 
 ### Network Topology (3-tier)
 
-| Tier | Link | Latency | Bandwidth |
-|------|------|---------|-----------|
-| INTRA_NODE | NVLink/NVSwitch | ~2 µs | 600 GB/s |
-| INTRA_POD | InfiniBand | ~5 µs | 200 GB/s |
-| CROSS_POD | IB fabric | ~15 µs | 100 GB/s |
+| Tier       | Link            | Latency | Bandwidth |
+| ---------- | --------------- | ------- | --------- |
+| INTRA_NODE | NVLink/NVSwitch | ~2 µs  | 600 GB/s  |
+| INTRA_POD  | InfiniBand      | ~5 µs  | 200 GB/s  |
+| CROSS_POD  | IB fabric       | ~15 µs | 100 GB/s  |
 
 Delay = `latency + tensor_bytes / (bandwidth_gbps * 1000)`. All tiers configurable in YAML.
 
@@ -99,12 +119,12 @@ tail: [scatter_1 wait] [compute_1] [gather_1]
 
 Models the difference between two physical transport layers:
 
-| | EPS (Electrical Packet Switching) | OCS (Optical Circuit Switching) |
-|---|---|---|
-| **Connection** | Always-on, per-packet routed | Finite pool of reconfigurable circuits |
-| **Setup cost** | None (statistical multiplexing) | `reconfig_time_us` when cold (mirror steering) |
-| **Once established** | N/A | Fast path: `circuit_latency_us` + bytes/BW |
-| **Capacity** | Unlimited concurrent pairs | `max_circuits` pool, LRU eviction on overflow |
+|                            | EPS (Electrical Packet Switching) | OCS (Optical Circuit Switching)                  |
+| -------------------------- | --------------------------------- | ------------------------------------------------ |
+| **Connection**       | Always-on, per-packet routed      | Finite pool of reconfigurable circuits           |
+| **Setup cost**       | None (statistical multiplexing)   | `reconfig_time_us` when cold (mirror steering) |
+| **Once established** | N/A                               | Fast path:`circuit_latency_us` + bytes/BW      |
+| **Capacity**         | Unlimited concurrent pairs        | `max_circuits` pool, LRU eviction on overflow  |
 
 **OCS Pipeline mode** (`ocs_pipeline`): Pre-establishes circuits before each scatter, overlapping reconfiguration with computation from prior micro-batches. After cold start, circuits stay hot → near-zero reconfig overhead.
 
@@ -167,7 +187,15 @@ configs/
 ├── ocs_demo.yaml                # OCS pipeline mode, 50µs reconfig, 8-circuit pool
 ├── ocs_dbo_demo.yaml            # OCS dual-batch overlap, 100µs reconfig, 4 microbatches
 ├── compare_ocs_base.yaml        # Baseline for OCS comparison (overlap + EPS, no OCS)
-└── compare_ocs_on.yaml          # OCS counterpart (ocs_pipeline, same workload)
+├── compare_ocs_on.yaml          # OCS counterpart (ocs_pipeline, same workload)
+├── routing_replay.yaml          # Replay captured routing traces with synthetic experts
+├── ocs_replay.yaml              # OCS + routing replay (synthetic experts)
+├── ocs_dbo_replay.yaml          # OCS DBO + routing replay (synthetic experts)
+├── qwen_replay.yaml             # Real Qwen experts + routing replay (no OCS)
+├── qwen_ocs_base.yaml           # Real Qwen experts + routing replay + OCS (base)
+├── qwen_ocs_lite.yaml           # Qwen + OCS lite — 8 experts, fast verification
+├── qwen_ocs_pipeline.yaml       # Qwen + OCS pipeline — 32 experts, full experiment
+└── qwen_ocs_dbo.yaml            # Qwen + OCS DBO — dual-batch overlap, lookahead
 
 scripts/
 ├── run_synthetic.sh             # One-command: serial or overlap mode
@@ -179,25 +207,25 @@ scripts/
 
 ## Configuration Reference
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `world_size` | Number of ranks | 4 |
-| `model.num_experts` | Total experts (= world_size × experts_per_rank) | 4 |
-| `model.experts_per_rank` | Experts per GPU | 1 |
-| `model.hidden_dim` | Token embedding dimension | 256 |
-| `model.expert_type` | `tiny` (Linear) or `ffn` (2-layer GELU) | `tiny` |
-| `model.top_k` | Top-K gating | 1 |
-| `routing.strategy` | `fixed`, `top1`, `top2`, `uniform_random` | `fixed` |
-| `runtime.mode` | `serial`, `overlap`, `ocs_pipeline`, `ocs_dbo`, or `train_serial` | `serial` |
-| `delay.comm_delay_us` | Flat delay (ignored if topology or OCS enabled) | 0 |
-| `delay.comm_delay_jitter_us` | Random jitter ± on flat delay | 0 |
-| `topology.enabled` | Use hierarchical topology delays | false |
-| `ocs.enabled` | Enable OCS circuit pool (EPS otherwise) | false |
-| `ocs.max_circuits` | Max simultaneous optical circuits in pool | 32 |
-| `ocs.reconfig_time_us` | Time to reconfigure one circuit (mirror steering) | 50.0 |
-| `ocs.circuit_latency_us` | Base optical path latency (once established) | 1.0 |
-| `ocs.circuit_bandwidth_gbps` | Circuit bandwidth (optical = much higher than EPS) | 200.0 |
-| `ocs.placement_strategy` | Expert→rank placement: `round_robin` or `affinity` | `round_robin` |
+| Parameter                      | Description                                                                 | Default         |
+| ------------------------------ | --------------------------------------------------------------------------- | --------------- |
+| `world_size`                 | Number of ranks                                                             | 4               |
+| `model.num_experts`          | Total experts (= world_size × experts_per_rank)                            | 4               |
+| `model.experts_per_rank`     | Experts per GPU                                                             | 1               |
+| `model.hidden_dim`           | Token embedding dimension                                                   | 256             |
+| `model.expert_type`          | `tiny` (Linear) or `ffn` (2-layer GELU)                                 | `tiny`        |
+| `model.top_k`                | Top-K gating                                                                | 1               |
+| `routing.strategy`           | `fixed`, `top1`, `top2`, `uniform_random`                           | `fixed`       |
+| `runtime.mode`               | `serial`, `overlap`, `ocs_pipeline`, `ocs_dbo`, or `train_serial` | `serial`      |
+| `delay.comm_delay_us`        | Flat delay (ignored if topology or OCS enabled)                             | 0               |
+| `delay.comm_delay_jitter_us` | Random jitter ± on flat delay                                              | 0               |
+| `topology.enabled`           | Use hierarchical topology delays                                            | false           |
+| `ocs.enabled`                | Enable OCS circuit pool (EPS otherwise)                                     | false           |
+| `ocs.max_circuits`           | Max simultaneous optical circuits in pool                                   | 32              |
+| `ocs.reconfig_time_us`       | Time to reconfigure one circuit (mirror steering)                           | 50.0            |
+| `ocs.circuit_latency_us`     | Base optical path latency (once established)                                | 1.0             |
+| `ocs.circuit_bandwidth_gbps` | Circuit bandwidth (optical = much higher than EPS)                          | 200.0           |
+| `ocs.placement_strategy`     | Expert→rank placement:`round_robin` or `affinity`                      | `round_robin` |
 
 ## OCS Comparison (EPS vs OCS)
 
@@ -212,14 +240,14 @@ The comparison isolates **only the OCS transport effect** by using `overlap` (EP
 
 **Sample results** (4 ranks, 8 experts, 2 microbatch, 500µs EPS delay → 50µs OCS reconfig):
 
-| Metric | Baseline (overlap + EPS) | OCS (ocs_pipeline) | Delta |
-|--------|--------------------------|--------------------|-------|
-| Total wall time | 23,269 µs | 17,424 µs | **-25.1%** |
-| Comm time | 23,269 µs | 17,091 µs | -26.6% |
-| OCS overhead | — | 333 µs | — |
-| Circuit reuse | — | 96.7% | — |
-| Reconfig time | — | 150 µs (3 cold starts) | — |
-| LRU evictions | — | 0 | — |
+| Metric          | Baseline (overlap + EPS) | OCS (ocs_pipeline)      | Delta            |
+| --------------- | ------------------------ | ----------------------- | ---------------- |
+| Total wall time | 23,269 µs               | 17,424 µs              | **-25.1%** |
+| Comm time       | 23,269 µs               | 17,091 µs              | -26.6%           |
+| OCS overhead    | —                       | 333 µs                 | —               |
+| Circuit reuse   | —                       | 96.7%                   | —               |
+| Reconfig time   | —                       | 150 µs (3 cold starts) | —               |
+| LRU evictions   | —                       | 0                       | —               |
 
 **Why OCS wins**: Once circuits are established (3 cold starts), the remaining 87/90 requests hit the fast optical path. OCS base latency (1µs) + transfer time (0.7µs per 128KB) is negligible compared to 500µs EPS delay. The 333µs of OCS overhead is pre-establish timer events, not actual reconfig cost.
 

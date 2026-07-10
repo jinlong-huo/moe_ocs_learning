@@ -1,0 +1,29 @@
+# MoE LoRA fine-tuning config for Qwen3.6-35B-A3B
+# LoRA adapters applied to all linear + switch-linear layers across all 40 layers
+model: "models/Qwen3.6-35B-A3B-4bit"
+train: true
+fine_tune_type: lora
+seed: 42
+num_layers: 40
+batch_size: 1
+iters: 500
+val_batches: 10
+learning_rate: 2.0e-5
+steps_per_report: 10
+steps_per_eval: 100
+save_every: 100
+max_seq_length: 2048
+grad_checkpoint: true
+grad_accumulation_steps: 4
+optimizer: adamw
+optimizer_config:
+  adamw:
+    weight_decay: 0.01
+lora_parameters:
+  rank: 16
+  dropout: 0.05
+  scale: 20.0
+adapter_path: "adapters/qwen3.6-moe-lora"
+data: "data/moe_train"
+mask_prompt: false
+report_to: null

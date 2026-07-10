@@ -1,0 +1,56 @@
+# Qwen replay config: real Qwen MoE gate + expert weights + captured routing + OCS.
+#
+# Prerequisites:
+#   1. Export weights (first layer only, for speed):
+#      python3 scripts/export_qwen_experts.py \
+#          --model models/Qwen3.6-35B-A3B-4bit \
+#          --output exported_qwen_weights --max-layers 1
+#
+#   2. Run simulation:
+#      python3 -m src.launcher --config configs/qwen_replay.yaml
+#
+# Weight layout (from Qwen3.6-35B-A3B dequantized):
+#   hidden_dim=4096, intermediate_dim=512, 256 experts, top-8
+#   This config uses 32 experts (subset) for CPU-memory feasibility.
+#   Each rank loads 8 experts (~200MB/rank).
+
+extends: synthetic_moe
+
+routing:
+  strategy: "replay"          # Use captured routing from real model
+
+routing_replay:
+  enabled: true
+  trace_path: "data/routing_traces/routing.json"
+  layer_idx: 0
+  cycle_layers: false
+
+model:
+  num_experts: 32             # Subset of 256 for practicality (4 ranks × 8 experts/rank)
+  experts_per_rank: 8
+  hidden_dim: 4096            # Qwen3.6 dequantized hidden dim
+  expert_type: "qwen"         # Real Qwen SwitchGLU experts
+  top_k: 2                    # Downsample from top-8 to top-2
+
+qwen:
+  weight_dir: "exported_qwen_weights/layer_0"
+  hidden_dim: 4096
+  intermediate_dim: 512
+  num_experts: 32
+  top_k: 2
+
+data:
+  batch_size: 1
+  seq_len: 64
+  num_microbatches: 2
+
+ocs:
+  enabled: false              # Set true to enable OCS circuit simulation
+
+runtime:
+  mode: "overlap"
+  num_steps: 3
+
+profiling:
+  export_trace: true
+  trace_dir: "outputs/traces"

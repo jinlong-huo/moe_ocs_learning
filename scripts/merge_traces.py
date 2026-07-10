@@ -18,18 +18,22 @@ from pathlib import Path
 def merge_traces(trace_paths: list[str], output_path: str) -> str:
     """Merge per-rank trace files, assigning each rank a unique pid."""
     all_events = []
+    all_metadata = []
     for rank, path in enumerate(sorted(trace_paths)):
         with open(path) as f:
             data = json.load(f)
         events = data.get("traceEvents", [])
-        # Re-assign pid so each rank gets its own horizontal lane in Perfetto / chrome://tracing
         for ev in events:
             ev["pid"] = rank
         all_events.extend(events)
+        if "_metadata" in data:
+            all_metadata.append(data["_metadata"])
 
     merged = {
         "traceEvents": all_events,
         "displayTimeUnit": "ns",
+        "_metadata": all_metadata[0] if all_metadata else None,
+        "_all_metadata": all_metadata,
     }
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w") as f:

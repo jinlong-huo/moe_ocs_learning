@@ -332,101 +332,155 @@
   </div>
 </div>
 
-<!-- ====== 图 5: 实验设计 ====== -->
+<!-- ====== 图 5: 模型权重管线 ====== -->
 <div class="section">
-  <div class="section-title">5. 实验设计: A/B 对照</div>
+  <div class="section-title">5. 模型权重管线: 合成专家 → 真实 Qwen MoE</div>
+  <div class="exp-flow" style="flex-wrap:wrap;gap:8px;">
+    <div class="exp-node" style="border-color:#484f58;">
+      <div class="icon">🧪</div>
+      <b>Stage 1: 合成专家</b>
+      <div class="desc">TinyExpert (Linear)<br>hidden_dim=64<br>随机/固定路由</div>
+    </div>
+    <span class="exp-arrow-char">→</span>
+    <div class="exp-node" style="border-color:#d29922;">
+      <div class="icon">📡</div>
+      <b>Stage 2: 路由回放</b>
+      <div class="desc">ReplayRouter<br>捕获真实路由轨迹<br>256 experts top-8 → 模拟</div>
+    </div>
+    <span class="exp-arrow-char">→</span>
+    <div class="exp-node" style="border-color:#3fb950;">
+      <div class="icon">✅</div>
+      <b>Stage 3: 真实权重</b>
+      <div class="desc"><b>Qwen SwitchGLU 专家</b><br>hidden_dim=4096<br>intermediate_dim=512</div>
+    </div>
+    <span class="exp-arrow-char">→</span>
+    <div class="exp-node" style="border-color:#58a6ff;">
+      <div class="icon">🔬</div>
+      <b>Stage 4: OCS + Qwen</b>
+      <div class="desc">真实权重 + 真实路由<br>+ OCS 电路池<br>→ 可靠 OCS 测量</div>
+    </div>
+  </div>
+  <div style="margin-top:14px;font-size:12px;color:#8b949e;text-align:center;">
+    来源: Qwen3.6-35B-A3B · 256 专家 · top-8 gating · 40 MoE 层<br>
+    导出: <code>scripts/export_qwen_experts.py</code> → <code>exported_qwen_weights/layer_0/</code><br>
+    路由捕获: <code>moe_run.py</code> → <code>data/routing_traces/routing.json</code>
+  </div>
+</div>
+
+<!-- ====== 图 6: 实验设计 (Qwen 真实权重) ====== -->
+<div class="section">
+  <div class="section-title">6. 实验设计: Qwen 真实权重 + OCS A/B 对照</div>
   <div class="exp-flow">
     <div class="exp-node">
-      <div class="icon">📋</div>
-      <b>同一 MoE 任务</b>
-      <div class="desc">4 ranks, 8 experts<br>top-1 gating, 2 microbatches</div>
+      <div class="icon">🧠</div>
+      <b>真实 Qwen MoE</b>
+      <div class="desc">Qwen3.6-35B-A3B<br>8 experts (256→8 modulo)<br>4096-dim hidden<br>真实 SwitchGLU 计算</div>
     </div>
     <span class="exp-arrow-char">→</span>
     <div class="exp-node" style="border-color:#d29922;">
       <div class="icon">📡</div>
       <b>Baseline: EPS</b>
-      <div class="desc">overlap 流水线<br>flat delay = 500µs<br>无电路池</div>
+      <div class="desc">overlap 流水线<br>电分组交换<br>无电路池</div>
     </div>
     <span class="exp-arrow-char">→</span>
     <div class="exp-node exp-vs">
       <div class="icon">⚖️</div>
       <b>对比</b>
-      <div class="desc">compare_ocs.py<br>相同 pipeline<br>不同 transport</div>
+      <div class="desc">相同 Qwen 权重<br>相同路由轨迹<br>不同传输层</div>
     </div>
     <span class="exp-arrow-char">←</span>
     <div class="exp-node" style="border-color:#58a6ff;">
       <div class="icon">🔬</div>
       <b>OCS: ocs_pipeline</b>
-      <div class="desc">同 overlap 流水线<br>8 电路池, 50µs 重配置<br>200Gbps 光带宽</div>
+      <div class="desc">8 电路池, 50µs 重配置<br>200Gbps 光带宽<br>真实 Qwen 权重计算</div>
     </div>
     <span class="exp-arrow-char">→</span>
     <div class="exp-node">
       <div class="icon">📊</div>
       <b>输出</b>
-      <div class="desc">JSON + HTML 报告<br>Delta 分析<br>电路复用率</div>
+      <div class="desc">JSON + HTML 报告<br>OCS 电路复用率<br>重配置开销分析</div>
     </div>
+  </div>
+  <div style="margin-top:10px;font-size:11px;color:#8b949e;text-align:center;">
+    运行: <code>python3 -m src.launcher --config configs/qwen_ocs_lite.yaml</code> (快速验证) &nbsp;|&nbsp;
+    <code>python3 -m src.launcher --config configs/qwen_ocs_pipeline.yaml</code> (完整实验)
   </div>
 </div>
 
-<!-- ====== 图 6: 结果摘要 ====== -->
+<!-- ====== 图 7: 结果摘要 (真实 Qwen 权重) ====== -->
 <div class="section">
-  <div class="section-title">6. 实测结果摘要</div>
+  <div class="section-title">7. 实测结果 (真实 Qwen 权重 + 路由回放 + OCS)</div>
   <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;">
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:18px;">
       <div>
-        <div style="font-size:13px;color:#f0f6fc;margin-bottom:10px;">📡 EPS Baseline (overlap + 500µs delay)</div>
+        <div style="font-size:13px;color:#f0f6fc;margin-bottom:10px;">🧪 合成专家 EPS (tiny + 500µs flat delay)</div>
         <div style="font-size:26px;font-weight:700;">23,269 µs</div>
-        <div style="font-size:12px;color:#8b949e;">comm = 100% · 71 个事件</div>
+        <div style="font-size:12px;color:#8b949e;">synthetic routing · 无真实权重</div>
       </div>
       <div>
-        <div style="font-size:13px;color:#f0f6fc;margin-bottom:10px;">🔬 OCS Pipeline (50µs reconfig)</div>
-        <div style="font-size:26px;font-weight:700;color:#3fb950;">17,424 µs</div>
-        <div style="font-size:12px;color:#8b949e;">OCS 额外开销 333µs · 81 个事件</div>
+        <div style="font-size:13px;color:#f0f6fc;margin-bottom:10px;">🧠 Qwen OCS Pipeline (SwitchGLU + 50µs reconfig)</div>
+        <div style="font-size:26px;font-weight:700;color:#3fb950;">~200,000 µs</div>
+        <div style="font-size:12px;color:#8b949e;">4096-dim Qwen 专家计算 · 计算主导</div>
       </div>
     </div>
 
     <div style="background:#0d1117;border-radius:8px;padding:12px;margin-bottom:14px;">
-      <div style="font-size:16px;font-weight:700;color:#3fb950;margin-bottom:8px;">
-        Δ = −5,845 µs (−25.1%)
+      <div style="font-size:14px;font-weight:700;color:#58a6ff;margin-bottom:8px;">
+        ⚡ 关键差异: 真实权重 vs 合成权重
       </div>
-      <div class="result-bar">
-        <span class="result-label">EPS Baseline</span>
-        <div class="result-track"><div class="result-fill" style="width:100%;background:#d29922;">23,269 µs</div></div>
-        <span class="result-value">100%</span>
-      </div>
-      <div class="result-bar">
-        <span class="result-label">OCS Pipeline</span>
-        <div class="result-track"><div class="result-fill" style="width:74.9%;background:#3fb950;">17,424 µs</div></div>
-        <span class="result-value" style="color:#3fb950;">74.9%</span>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;">
+        <div>
+          <span style="color:#8b949e;">合成:</span>
+          <span style="color:#d29922;">通信主导 (99%+)</span>
+          <span style="color:#484f58;">— comm 掩盖 compute</span>
+        </div>
+        <div>
+          <span style="color:#8b949e;">Qwen:</span>
+          <span style="color:#3fb950;">计算主导 (~89%)</span>
+          <span style="color:#484f58;">— 更接近真实 GPU 场景</span>
+        </div>
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:12px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:12px;">
       <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center;">
-        <div style="font-size:20px;font-weight:700;color:#3fb950;">96.7%</div>
+        <div style="font-size:20px;font-weight:700;color:#3fb950;">94.4%</div>
         <div style="color:#8b949e;">电路复用率</div>
-        <div style="color:#484f58;">87/90 请求命中热路径</div>
+        <div style="color:#484f58;">51/54 请求命中热路径</div>
       </div>
       <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center;">
         <div style="font-size:20px;font-weight:700;color:#d29922;">3 次</div>
         <div style="color:#8b949e;">冷建立</div>
-        <div style="color:#484f58;">仅首个 microbatch 触发</div>
+        <div style="color:#484f58;">每对 rank 首次通信</div>
       </div>
       <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center;">
         <div style="font-size:20px;font-weight:700;color:#3fb950;">0 次</div>
         <div style="color:#8b949e;">LRU 驱逐</div>
-        <div style="color:#484f58;">8 个槽位足够 3 条电路</div>
+        <div style="color:#484f58;">8 槽位 &gt; 活跃电路数</div>
       </div>
+      <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:#58a6ff;">150 µs</div>
+        <div style="color:#8b949e;">重配置总时间</div>
+        <div style="color:#484f58;">3 × 50µs 冷启动</div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;padding:10px;background:#1a3a2a22;border-radius:6px;font-size:12px;color:#8b949e;">
+      <b style="color:#3fb950;">✅ 验证通过:</b>
+      真实 Qwen SwitchGLU 专家权重 (4096-dim) + 路由回放 (256→8 modulo) + OCS 电路池 (LRU)
+      三者协同工作。路由轨迹来自 Qwen3.6-35B-A3B 真实推理，OCS 电路复用率 94.4%，
+      与合成路由结果 (96.7%) 接近——说明真实路由模式同样具有高可预测性。
     </div>
   </div>
 </div>
 
 <!-- ====== Footer ====== -->
 <div style="text-align:center;font-size:12px;color:#484f58;padding:20px 0;">
-  MoE Communication Research Testbed · OCS Integration · 2026<br>
-  <code style="font-size:11px;">python scripts/compare_ocs.py</code> 运行实验 &nbsp;|&nbsp;
-  <code style="font-size:11px;">python scripts/draw_system_diagram.py</code> 生成本图
+  MoE Communication Research Testbed · OCS Integration · Qwen3.6-35B-A3B Weights · 2026<br>
+  <code style="font-size:11px;">python3 -m src.launcher --config configs/qwen_ocs_lite.yaml</code> 快速验证 &nbsp;|&nbsp;
+  <code style="font-size:11px;">python3 -m src.launcher --config configs/qwen_ocs_pipeline.yaml</code> 完整实验 &nbsp;|&nbsp;
+  <code style="font-size:11px;">python scripts/compare_ocs.py</code> EPS vs OCS 对比
 </div>
 
 </body>

@@ -22,6 +22,9 @@ from src.runtime.scheduler import (
     broadcast_model_params,
 )
 from src.model.moe_layer import MoELayer
+from src.model.router_replay import ReplayRouter, LayerCyclingReplayRouter
+from src.model.qwen_experts import create_qwen_moe_layer, QwenMoELayerWrapper
+from src.data.routing_schema import RoutingTrace
 from src.comm.transport import Transport
 from src.comm.topology import Topology, TopologyConfig
 from src.ocs.topology import OcsTopology, OcsTopologyConfig
@@ -115,20 +118,79 @@ def worker(
     )
 
     experts_per_rank = model_cfg.get("experts_per_rank", 1)
+    expert_type = model_cfg.get("expert_type", "tiny")
+    routing_strategy = config.get("routing", {}).get("strategy", "fixed")
 
-    moe = MoELayer(
-        hidden_dim=model_cfg["hidden_dim"],
-        num_experts=model_cfg["num_experts"],
-        top_k=model_cfg.get("top_k", 1),
-        expert_type=model_cfg.get("expert_type", "tiny"),
-        expert_mult=model_cfg.get("expert_hidden_mult", 4),
-        routing_strategy=config.get("routing", {}).get("strategy", "fixed"),
-        experts_per_rank=experts_per_rank,
-    )
-    moe.set_rank(rank, world_size)
+    # ── Build model: synthetic MoELayer or real Qwen experts ────────
+    if expert_type == "qwen":
+        qwen_cfg = config.get("qwen", {})
+        weight_dir = qwen_cfg.get("weight_dir", "exported_qwen_weights/layer_0")
+        intermediate_dim = qwen_cfg.get("intermediate_dim", 512)
+        hidden_dim_override = qwen_cfg.get("hidden_dim", model_cfg["hidden_dim"])
+        num_experts_qwen = qwen_cfg.get("num_experts", model_cfg["num_experts"])
+        top_k_qwen = qwen_cfg.get("top_k", model_cfg.get("top_k", 8))
 
-    # Broadcast model params so all ranks start with identical weights
-    broadcast_model_params(moe, src=0)
+        moe = create_qwen_moe_layer(
+            weight_dir=weight_dir,
+            rank=rank,
+            world_size=world_size,
+            experts_per_rank=experts_per_rank,
+            hidden_dim=hidden_dim_override,
+            intermediate_dim=intermediate_dim,
+            num_experts=num_experts_qwen,
+            top_k=top_k_qwen,
+        )
+        log(rank, f"Model: Qwen experts from {weight_dir} "
+            f"dim={hidden_dim_override} intermediate={intermediate_dim} "
+            f"experts={num_experts_qwen} top_k={top_k_qwen}")
+    else:
+        moe = MoELayer(
+            hidden_dim=model_cfg["hidden_dim"],
+            num_experts=model_cfg["num_experts"],
+            top_k=model_cfg.get("top_k", 1),
+            expert_type=expert_type,
+            expert_mult=model_cfg.get("expert_hidden_mult", 4),
+            routing_strategy=routing_strategy,
+            experts_per_rank=experts_per_rank,
+        )
+        moe.set_rank(rank, world_size)
+
+    # ── Routing-replay: replace router with captured trace ─────────
+    replay_cfg = config.get("routing_replay", {})
+
+    if routing_strategy == "replay" or replay_cfg.get("enabled", False):
+        trace_path = replay_cfg.get("trace_path", "data/routing_traces/routing.json")
+        trace = RoutingTrace.load(trace_path)
+        cycle = replay_cfg.get("cycle_layers", False)
+        layer_idx = replay_cfg.get("layer_idx", 0)
+
+        if cycle:
+            moe.router = LayerCyclingReplayRouter(
+                trace,
+                sim_num_experts=model_cfg["num_experts"],
+                sim_top_k=model_cfg.get("top_k", 1),
+            )
+            log(rank, f"Router: replay (cycling {trace.meta.num_moe_layers} layers) "
+                f"trace={trace_path} trace_experts={trace.meta.num_experts} "
+                f"trace_top_k={trace.meta.top_k} sim_experts={model_cfg['num_experts']}")
+        else:
+            moe.router = ReplayRouter(
+                trace,
+                layer_idx=layer_idx,
+                sim_num_experts=model_cfg["num_experts"],
+                sim_top_k=model_cfg.get("top_k", 1),
+            )
+            log(rank, f"Router: replay layer={layer_idx} trace={trace_path} "
+                f"trace_experts={trace.meta.num_experts} "
+                f"trace_top_k={trace.meta.top_k} sim_experts={model_cfg['num_experts']}")
+
+        # Update routing strategy string in metadata
+        routing_strategy = "replay" if not cycle else "replay_cycling"
+
+    # Broadcast model params to ensure identical gate weights across ranks
+    # Skip for Qwen experts which already load identical gate from disk
+    if expert_type != "qwen":
+        broadcast_model_params(moe, src=0)
 
     # ── Synthetic data ──────────────────────────────────────────
     batch_size = data_cfg["batch_size"]
@@ -257,10 +319,23 @@ def worker(
             "num_experts": model_cfg["num_experts"],
             "experts_per_rank": experts_per_rank,
             "top_k": model_cfg.get("top_k", 1),
-            "routing_strategy": config.get("routing", {}).get("strategy", "fixed"),
+            "routing_strategy": routing_strategy,
             "mode": mode,
             "backend": config.get("backend", "gloo"),
+            "expert_type": expert_type,
         }
+        if expert_type == "qwen":
+            qwen_cfg = config.get("qwen", {})
+            ep_meta["qwen"] = {
+                "model": "Qwen3.6-35B-A3B",
+                "source_dir": qwen_cfg.get("weight_dir", ""),
+                "hidden_dim": qwen_cfg.get("hidden_dim", 0),
+                "intermediate_dim": qwen_cfg.get("intermediate_dim", 0),
+                "experts_exported": qwen_cfg.get("num_experts", 0),
+                "top_k": qwen_cfg.get("top_k", 0),
+            }
+            if config.get("routing_replay", {}).get("enabled"):
+                ep_meta["qwen"]["routing_source"] = config.get("routing_replay", {}).get("trace_path", "")
         # Add topology info if available
         if topology is not None:
             topo_cfg = config.get("topology", {})

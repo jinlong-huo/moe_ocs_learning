@@ -1,0 +1,14 @@
+# Qwen + OCS Pipeline: real weights + real routing + OCS pre-establishment.
+#
+# Uses ocs_pipeline mode — circuits are pre-established before each scatter,
+# overlapping reconfiguration with computation from prior micro-batches.
+# After cold start, circuits stay hot → near-zero reconfig overhead.
+#
+# Run:
+#   python3 -m src.launcher --config configs/qwen_ocs_pipeline.yaml
+
+extends: qwen_ocs_base
+
+runtime:
+  mode: "ocs_pipeline"
+  num_steps: 5

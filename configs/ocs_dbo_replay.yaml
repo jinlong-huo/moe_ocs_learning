@@ -1,0 +1,18 @@
+# DBO + Routing-Replay: OCS Dual-Batch Overlap with real routing traces.
+# Combines lookahead circuit pre-establishment with captured routing patterns
+# to maximize overlap and hide circuit reconfig behind computation.
+
+extends: ocs_replay
+
+runtime:
+  mode: "ocs_dbo"
+  num_steps: 20
+
+data:
+  num_microbatches: 4       # >= 3 needed for full DBO pipeline benefit
+
+ocs:
+  max_circuits: 32
+  reconfig_time_us: 100.0   # Higher reconfig time makes DBO more impactful
+  circuit_latency_us: 1.0
+  circuit_bandwidth_gbps: 200.0

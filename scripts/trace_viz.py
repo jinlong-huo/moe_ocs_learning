@@ -251,7 +251,14 @@ function renderEPPanel() {{
     <strong>${{epInfo.nExp}}</strong> total experts &nbsp;|&nbsp;
     Top-<strong>${{epInfo.topK}}</strong> gating &nbsp;|&nbsp;
     Routing: <strong>${{epInfo.routing}}</strong>
+    ${{META.qwen ? `&nbsp;|&nbsp;Model: <strong>Qwen3.6-35B-A3B</strong>` : ''}}
   </div>`;
+  if (META.qwen) {{
+    html += `<div class="ep-summary" style="color:#4a6cf7;font-size:0.73rem">
+      Qwen Export: dim=${{META.qwen.hidden_dim}} intermediate=${{META.qwen.intermediate_dim}}
+      experts_exported=${{META.qwen.experts_exported}} top_k=${{META.qwen.top_k}}
+    </div>`;
+  }}
 
   if (epInfo.pods && epInfo.pods.length > 1) {{
     // Topology view: grouped by pod > node

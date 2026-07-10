@@ -1,0 +1,40 @@
+# OCS + Routing-Replay: combines real MoE routing traces with OCS circuit simulation.
+# This is the full research pipeline:
+#   1. Capture routing from a real Qwen MoE model
+#   2. Replay that routing in the OCS communication simulator
+#   3. Measure circuit reuse, reconfig overhead, and overlap efficiency
+#
+# Extends routing_replay.yaml (which extends synthetic_moe.yaml).
+
+extends: routing_replay
+
+routing_replay:
+  enabled: true
+  trace_path: "data/routing_traces/routing.json"   # 256 experts, top-8 from Qwen3.6-35B-A3B
+  layer_idx: 0
+  cycle_layers: false
+
+ocs:
+  enabled: true
+  max_circuits: 32
+  reconfig_time_us: 50.0
+  circuit_latency_us: 1.0
+  circuit_bandwidth_gbps: 200.0
+  placement_strategy: round_robin
+
+runtime:
+  mode: "ocs_pipeline"      # Use OCS circuit pre-establishment + overlap
+  num_steps: 20
+
+# Match the trace: 8 experts × 4 ranks = 32 (or full 256 experts for stress test)
+model:
+  num_experts: 8            # Mapped from 256 via modulo remapping
+  experts_per_rank: 2       # 8 experts / 4 ranks
+  hidden_dim: 64
+  expert_type: "tiny"
+  top_k: 2                  # Use top-2 (matched from trace's top-8)
+
+data:
+  batch_size: 32
+  seq_len: 64
+  num_microbatches: 4

@@ -1,0 +1,51 @@
+# Qwen + OCS base config: real Qwen MoE expert weights + captured routing + OCS.
+#
+# This is the full research pipeline with authentic model weights:
+#   1. Real Qwen SwitchGLU experts (4096-dim hidden, 512-dim intermediate)
+#   2. Real routing traces captured from Qwen3.6-35B-A3B
+#   3. OCS circuit pool simulation (LRU eviction, reconfig overhead)
+#
+# Prerequisites:
+#   1. Export Qwen weights:
+#      python3 scripts/export_qwen_experts.py \
+#          --model models/Qwen3.6-35B-A3B-4bit \
+#          --output exported_qwen_weights --max-layers 1
+#
+#   2. Capture routing trace:
+#      python moe_run.py --model models/Qwen3.6-35B-A3B-4bit \
+#          --prompt "Explain MoE routing." --max-tokens 128
+#
+#   3. Run simulation:
+#      python3 -m src.launcher --config configs/qwen_ocs_base.yaml
+#
+# Uses 32 of 256 experts (subset) for CPU-memory feasibility.
+# Each rank loads 8 experts (~192MB/rank in float32).
+
+extends: qwen_replay
+
+# Disable flat delay — OCS provides the only delay model
+delay:
+  enabled: false
+  comm_delay_us: 0
+  comm_delay_jitter_us: 0
+
+ocs:
+  enabled: true
+  max_circuits: 32
+  reconfig_time_us: 50.0
+  circuit_latency_us: 1.0
+  circuit_bandwidth_gbps: 200.0
+  placement_strategy: round_robin
+
+runtime:
+  mode: "ocs_pipeline"
+  num_steps: 3
+
+data:
+  batch_size: 1
+  seq_len: 64
+  num_microbatches: 2
+
+profiling:
+  export_trace: true
+  trace_dir: "outputs/traces"
