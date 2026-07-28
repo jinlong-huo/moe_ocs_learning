@@ -84,20 +84,20 @@ def main():
     # Per-layer consistency (if both traces have per-layer data)
     train_layers_raw = []
     infer_layers_raw = []
-    for frame in train_trace.frames:
-        train_layers_raw.append(frame.get("layers", []))
-    for frame in infer_trace.frames:
-        infer_layers_raw.append(frame.get("layers", []))
+    for route in train_trace.routes:
+        train_layers_raw.append(route.layers)
+    for route in infer_trace.routes:
+        infer_layers_raw.append(route.layers)
 
     if train_layers_raw and infer_layers_raw:
         # Flatten: extract expert_ids from each layer
         t_layers = []
         i_layers = []
         for tl, il in zip(train_layers_raw, infer_layers_raw):
-            for t_layer in tl:
-                t_layers.append(t_layer.get("expert_ids", []))
-            for i_layer in il:
-                i_layers.append(i_layer.get("expert_ids", []))
+            for lid, t_layer in tl.items():
+                t_layers.append(t_layer.experts)
+            for lid, i_layer in il.items():
+                i_layers.append(i_layer.experts)
     else:
         t_layers = []
         i_layers = []

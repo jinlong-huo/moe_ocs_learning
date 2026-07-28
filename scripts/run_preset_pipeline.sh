@@ -4,7 +4,7 @@
 #
 # Usage:
 #   bash scripts/run_preset_pipeline.sh
-#   bash scripts/run_preset_pipeline.sh --trace data/routing_traces/routing.json
+#   bash scripts/run_preset_pipeline.sh data/routing_traces/routing.json
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,31 +57,55 @@ python3 scripts/compute_preset_plan.py \
     --world-size "$WORLD_SIZE"
 echo ""
 
-# ---- Step 3A: Run EPS baseline ----
-echo "[Step 3/4] Running EPS baseline (serial)..."
+# ---- Step 3A: Run EPS baseline (overlap mode, no OCS) ----
+echo "[Step 3A/4] Running EPS baseline (overlap)..."
+EPS_TRACE_DIR="$OUTPUT_DIR/traces_eps_baseline"
 python3 -m src.launcher \
-    --config configs/synthetic_moe.yaml \
-    --runtime.mode serial \
-    --profiling.trace_dir "$OUTPUT_DIR/traces_eps_baseline" \
-    2>&1 | tail -2
+    --config configs/compare_ocs_base.yaml \
+    --trace-dir "$EPS_TRACE_DIR" \
+    2>&1 | tail -5
 echo ""
 
 # ---- Step 3B: Run OCS pipeline (runtime reconfig) ----
-echo "[Step 3/4] Running OCS pipeline (runtime reconfig)..."
+echo "[Step 3B/4] Running OCS pipeline (runtime reconfig)..."
+OCS_TRACE_DIR="$OUTPUT_DIR/traces_ocs_runtime"
 python3 -m src.launcher \
-    --config configs/ocs_demo.yaml \
-    --profiling.trace_dir "$OUTPUT_DIR/traces_ocs_runtime" \
-    2>&1 | tail -2
+    --config configs/compare_ocs_on.yaml \
+    --trace-dir "$OCS_TRACE_DIR" \
+    2>&1 | tail -5
 echo ""
 
 # ---- Step 3C: Run OCS preset ----
-echo "[Step 3/4] Running OCS preset (pre-configured circuits)..."
+# Create a temporary config that points to the computed plan
+echo "[Step 3C/4] Running OCS preset (pre-configured circuits)..."
+PRESET_TRACE_DIR="$OUTPUT_DIR/traces_ocs_preset"
+PRESET_CONFIG="$OUTPUT_DIR/ocs_preset_temp.yaml"
+
+python3 -c "
+import yaml, os, sys, json
+sys.path.insert(0, '.')
+
+# Fully resolve the preset config (so extends: is inlined)
+from src.launcher import load_config
+cfg = load_config('configs/ocs_preset.yaml')
+
+# Point to the computed plan
+cfg.setdefault('ocs', {})['preset'] = {
+    'source': 'plan',
+    'plan_path': '$PLAN_PATH',
+    'strategy': 'coactivation',
+}
+
+with open('$PRESET_CONFIG', 'w') as f:
+    yaml.dump(cfg, f)
+print(f'Temp config written -> $PRESET_CONFIG')
+"
+
 python3 -m src.launcher \
-    --config configs/ocs_preset.yaml \
-    --ocs.preset.source plan \
-    --ocs.preset.plan_path "$PLAN_PATH" \
-    --profiling.trace_dir "$OUTPUT_DIR/traces_ocs_preset" \
-    2>&1 | tail -2
+    --config "$PRESET_CONFIG" \
+    --trace-dir "$PRESET_TRACE_DIR" \
+    2>&1 | tail -5
+rm -f "$PRESET_CONFIG"
 echo ""
 
 # ---- Step 4: Compare results ----
@@ -97,9 +121,9 @@ def load_trace_meta(trace_dir):
         return json.load(f)
 
 for label, path in [
-    ('EPS baseline', '$OUTPUT_DIR/traces_eps_baseline'),
-    ('OCS runtime', '$OUTPUT_DIR/traces_ocs_runtime'),
-    ('OCS preset',  '$OUTPUT_DIR/traces_ocs_preset'),
+    ('EPS baseline', '$EPS_TRACE_DIR'),
+    ('OCS runtime', '$OCS_TRACE_DIR'),
+    ('OCS preset',  '$PRESET_TRACE_DIR'),
 ]:
     meta = load_trace_meta(path)
     if meta:

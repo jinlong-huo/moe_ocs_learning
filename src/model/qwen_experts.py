@@ -50,21 +50,41 @@ class QwenExpert(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         gate = F.silu(self.gate_proj(x))
         up = self.up_proj(x)
-        combined = torch.cat([gate, up], dim=-1)
-        return self.down_proj(combined)
+        # SwiGLU: element-wise multiply gate and up, NOT concatenation
+        # Reference: Qwen3MoeSparseMoeBlock uses gate * up then down_proj
+        return self.down_proj(gate * up)
 
     def load_weights(self, path: str) -> None:
-        """Load expert weights from .npz or .pt file, auto-detecting dimensions."""
+        """Load expert weights from .npz or .pt file, auto-detecting dimensions.
+
+        Handles both properly-dequantized float32 weights and packed uint32
+        weights (from an earlier export bug).  Packed uint32 stores 4×int8
+        values per element along the last dimension; these are unpacked to
+        float32 with a warning about approximate values.
+        """
         if path.endswith(".npz"):
             data = dict(**dict(np.load(path)))
-            gp = torch.from_numpy(data["gate_proj"]).float()
-            up = torch.from_numpy(data["up_proj"]).float()
-            dn = torch.from_numpy(data["down_proj"]).float()
+            gp_raw = torch.from_numpy(data["gate_proj"])
+            up_raw = torch.from_numpy(data["up_proj"])
+            dn_raw = torch.from_numpy(data["down_proj"])
         else:
             checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-            gp = checkpoint["gate_proj"]
-            up = checkpoint["up_proj"]
-            dn = checkpoint["down_proj"]
+            gp_raw = checkpoint["gate_proj"]
+            up_raw = checkpoint["up_proj"]
+            dn_raw = checkpoint["down_proj"]
+
+        # Detect packed uint32 (export bug: _try_dequantize fell back to raw packed weights)
+        gp, gp_unpacked = self._maybe_unpack(gp_raw, "gate_proj")
+        up, up_unpacked = self._maybe_unpack(up_raw, "up_proj")
+        dn, dn_unpacked = self._maybe_unpack(dn_raw, "down_proj")
+        if gp_unpacked or up_unpacked or dn_unpacked:
+            import sys
+            print(
+                f"[qwen_experts] WARNING: {path} contains packed uint32 weights. "
+                f"Unpacked to float32 (approximate — re-export with fixed "
+                f"export_qwen_experts.py for accurate values).",
+                file=sys.stderr,
+            )
 
         gate_out, hidden_in = gp.shape
         up_out, _ = up.shape
@@ -81,6 +101,23 @@ class QwenExpert(nn.Module):
 
         self.down_proj = nn.Linear(combined_in, hidden_out, bias=False)
         self.down_proj.weight.data = dn
+
+    @staticmethod
+    def _maybe_unpack(weight: torch.Tensor, name: str = "") -> tuple[torch.Tensor, bool]:
+        """Detect and unpack uint32-packed 8-bit quantized weights.
+
+        MLX stores 8-bit quantized weights as 4×int8 values packed into each
+        uint32 element along the last dimension.  If the tensor is uint32,
+        unpack it to float32 with shape [*batch, last_dim * 4].
+
+        Returns (tensor, was_unpacked).
+        """
+        if weight.dtype == torch.uint32:
+            # Reinterpret uint32 as 4×uint8, convert to float32
+            w_u8 = weight.view(torch.uint8)  # [*dims, last_dim * 4]
+            w_f32 = w_u8.to(torch.float32)
+            return w_f32, True
+        return weight.float(), False
 
 
 class QwenGate(nn.Module):
@@ -104,19 +141,32 @@ class QwenGate(nn.Module):
         return expert_ids, gate_weights, logits
 
     def load_state_dict_from_pt(self, path: str, sim_num_experts: int | None = None) -> None:
-        """Load gate weights, optionally slicing to fewer experts."""
+        """Load gate weights, optionally slicing to fewer experts.
+
+        Handles both float32 and packed uint32 gate weights.
+        """
         if path.endswith(".npz") or path.endswith(".npy"):
             if path.endswith(".npy"):
-                w = torch.from_numpy(np.load(path)).float()
+                w_raw = torch.from_numpy(np.load(path))
             else:
                 data = dict(**dict(np.load(path)))
-                w = torch.from_numpy(data["weight"]).float()
+                w_raw = torch.from_numpy(data["weight"])
         else:
             data = torch.load(path, map_location="cpu", weights_only=True)
             if isinstance(data, dict) and "weight" in data:
-                w = data["weight"]
+                w_raw = data["weight"]
             else:
-                w = data
+                w_raw = data
+
+        # Unpack if uint32-packed (8-bit quantized MLX storage)
+        w, was_unpacked = QwenExpert._maybe_unpack(w_raw, "gate")
+        if was_unpacked:
+            import sys
+            print(
+                f"[qwen_experts] WARNING: {path} gate weights are packed uint32. "
+                f"Unpacked to float32 (approximate).",
+                file=sys.stderr,
+            )
 
         if sim_num_experts is not None and sim_num_experts < w.shape[0]:
             w = w[:sim_num_experts]
@@ -143,23 +193,38 @@ class QwenSharedExpert(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         gate_out = F.silu(self.gate_proj(x))
         up_out = self.up_proj(x)
-        combined = torch.cat([gate_out, up_out], dim=-1)
-        expert_out = self.down_proj(combined)
+        # SwiGLU: element-wise multiply gate and up, NOT concatenation
+        expert_out = self.down_proj(gate_out * up_out)
         gate_weight = torch.sigmoid(self.gate(x))
         return gate_weight * expert_out
 
     def load_weights(self, path: str) -> None:
-        """Load shared expert weights from .npz or .pt file."""
+        """Load shared expert weights from .npz or .pt file.
+
+        Handles both float32 and packed uint32 weights.
+        """
         if path.endswith(".npz"):
             data = dict(**dict(np.load(path)))
-            gp = torch.from_numpy(data["gate_proj"]).float()
-            up = torch.from_numpy(data["up_proj"]).float()
-            dn = torch.from_numpy(data["down_proj"]).float()
+            gp_raw = torch.from_numpy(data["gate_proj"])
+            up_raw = torch.from_numpy(data["up_proj"])
+            dn_raw = torch.from_numpy(data["down_proj"])
         else:
             d = torch.load(path, map_location="cpu", weights_only=True)
-            gp = d.get("gate_proj", torch.zeros(1))
-            up = d.get("up_proj", torch.zeros(1))
-            dn = d.get("down_proj", torch.zeros(1))
+            gp_raw = d.get("gate_proj", torch.zeros(1))
+            up_raw = d.get("up_proj", torch.zeros(1))
+            dn_raw = d.get("down_proj", torch.zeros(1))
+
+        # Unpack if uint32-packed
+        gp, gp_unpacked = QwenExpert._maybe_unpack(gp_raw, "shared_expert.gate_proj")
+        up, up_unpacked = QwenExpert._maybe_unpack(up_raw, "shared_expert.up_proj")
+        dn, dn_unpacked = QwenExpert._maybe_unpack(dn_raw, "shared_expert.down_proj")
+        if gp_unpacked or up_unpacked or dn_unpacked:
+            import sys
+            print(
+                f"[qwen_experts] WARNING: {path} contains packed uint32 weights. "
+                f"Unpacked to float32 (approximate).",
+                file=sys.stderr,
+            )
 
         gate_out, hidden_in = gp.shape
         hidden_out, combined_in = dn.shape
@@ -172,13 +237,18 @@ class QwenSharedExpert(nn.Module):
         self.down_proj.weight.data = dn
 
         if path.endswith(".npz"):
-            sw = torch.from_numpy(data.get("shared_expert_gate", np.zeros((hidden_in, 1)).T)).float()
+            sg_raw = torch.from_numpy(data.get("shared_expert_gate", np.zeros((hidden_in, 1)).T))
+            sg, _ = QwenExpert._maybe_unpack(sg_raw, "shared_expert_gate")
             self.gate = nn.Linear(hidden_in, 1, bias=False)
-            self.gate.weight.data = sw
+            self.gate.weight.data = sg
         elif "shared_expert_gate" in d:
-            self.gate.weight.data = d["shared_expert_gate"]
+            sg_raw = d["shared_expert_gate"]
+            sg, _ = QwenExpert._maybe_unpack(sg_raw, "shared_expert_gate")
+            self.gate.weight.data = sg
         elif "gate" in d:
-            self.gate.weight.data = d["gate"]
+            sg_raw = d["gate"]
+            sg, _ = QwenExpert._maybe_unpack(sg_raw, "shared_expert_gate")
+            self.gate.weight.data = sg
 
 
 def create_qwen_moe_layer(

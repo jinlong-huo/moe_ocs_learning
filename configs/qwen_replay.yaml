@@ -28,13 +28,13 @@ routing_replay:
 model:
   num_experts: 32             # Subset of 256 for practicality (4 ranks × 8 experts/rank)
   experts_per_rank: 8
-  hidden_dim: 4096            # Qwen3.6 dequantized hidden dim
+  hidden_dim: 2048            # Qwen3.6 dequantized hidden dim (unpacked from 8-bit gate.weight [256, 512]→[256, 2048])
   expert_type: "qwen"         # Real Qwen SwitchGLU experts
   top_k: 2                    # Downsample from top-8 to top-2
 
 qwen:
   weight_dir: "exported_qwen_weights/layer_0"
-  hidden_dim: 4096
+  hidden_dim: 2048
   intermediate_dim: 512
   num_experts: 32
   top_k: 2

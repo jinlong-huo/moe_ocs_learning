@@ -88,19 +88,32 @@ def _extract_quantized(mx_module, param_name: str = "weight"):
     return w, s, b
 
 
-def _try_dequantize(weight, scales, biases) -> np.ndarray:
-    """Dequantize a 4-bit MLX quantized tensor to float32."""
+def _try_dequantize(weight, scales, biases, bits: int = 8) -> np.ndarray:
+    """Dequantize an MLX quantized tensor to float32.
+
+    Handles both 4-bit and 8-bit quantization.  The bits parameter must
+    match the actual quantization width used for this weight.
+    """
     if scales is None or biases is None:
         return _mx_to_numpy(weight)
 
     packed_cols = weight.shape[-1]
     num_groups = scales.shape[-1]
-    group_size = (packed_cols * 8) // num_groups
+
+    if bits == 8:
+        # 8-bit: each uint32 holds 4×int8 values along the last dim
+        group_size = (packed_cols * 4) // num_groups
+    else:
+        # 4-bit: each uint32 holds 8×int4 values along the last dim
+        group_size = (packed_cols * 8) // num_groups
 
     try:
-        deq = mx.dequantize(weight, scales, biases, group_size=group_size, bits=4)
+        deq = mx.dequantize(weight, scales, biases, group_size=group_size, bits=bits)
         return _mx_to_numpy(deq)
-    except Exception:
+    except Exception as e:
+        # Fallback: return raw weight as float32 (approximate, dimensions may be off)
+        print(f"  [WARN] dequantize failed (bits={bits}, group_size={group_size}): {e}")
+        print(f"         returning raw weight (shape={weight.shape}) — re-export with correct bits")
         return _mx_to_numpy(weight)
 
 
