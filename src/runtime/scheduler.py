@@ -21,6 +21,13 @@ OCS Dual-Batch Overlap (ocs_dbo):
   hiding reconfig cost behind computation. Requires >= 3 microbatches
   for full 3-deep pipeline effect.
 
+OCS Preset (ocs_preset):
+  Pre-establishes all OCS circuits from a training-derived plan BEFORE
+  the first token is processed. No runtime reconfiguration occurs during
+  inference — all circuits are hot from the start. Models the scenario
+  where training-time affinity patterns are used to pre-configure OCS
+  for inference.
+
 Top-K support:
   For top_k > 1, the router returns expert_ids [T, K] and gate_weights [T, K].
   scatter_tokens flattens to [T*K] internally. combine_expert_outputs()
@@ -566,3 +573,106 @@ def run_ocs_dbo(
         timer.start(f"step/{step}/mb_{last}/combine")
         combined = combine_expert_outputs(gathered_last, prev_gate_weights)
         timer.stop(f"step/{step}/mb_{last}/combine")
+    # --- end run_ocs_dbo ---
+
+
+def run_ocs_preset(
+    step: int,
+    microbatches: List[torch.Tensor],
+    moe: MoELayer,
+    transport: Transport,
+    timer: Timer,
+) -> None:
+    """OCS Preset: pre-established circuits, zero runtime reconfig.
+
+    Circuits are pre-established from a training-derived placement plan
+    BEFORE the first micro-batch. During inference, all cross-rank
+    communication benefits from hot OCS circuits — no reconfig delay.
+    """
+    num_mbs = len(microbatches)
+
+    routes = []
+    for mb_idx, tokens in enumerate(microbatches):
+        timer.start(f"step/{step}/mb_{mb_idx}/route")
+        expert_ids, gate_weights, _logits = moe.router(tokens)
+        timer.stop(f"step/{step}/mb_{mb_idx}/route")
+        routes.append((expert_ids, gate_weights))
+
+    prev_dispatch = None
+    prev_gate_weights = None
+    prev_out = None
+    scatter_handle = None
+    scatter_result = None
+    prev_gather_handle = None
+    gathered_prev = None
+
+    for mb_idx in range(num_mbs):
+        tokens = microbatches[mb_idx]
+        expert_ids, gate_weights = routes[mb_idx]
+
+        if scatter_handle is not None:
+            timer.start(f"step/{step}/mb_{mb_idx-1}/scatter_wait")
+            scatter_handle.wait()
+            timer.stop(f"step/{step}/mb_{mb_idx-1}/scatter_wait")
+            prev_dispatch = scatter_result
+
+        timer.start(f"step/{step}/mb_{mb_idx}/scatter")
+        scatter_result, scatter_handle = scatter_tokens(
+            tokens, expert_ids, moe.num_experts,
+            moe.experts_per_rank, transport, async_op=True,
+        )
+        timer.stop(f"step/{step}/mb_{mb_idx}/scatter")
+
+        if prev_gather_handle is not None:
+            timer.start(f"step/{step}/mb_{mb_idx-2}/gather_wait")
+            prev_gather_handle.wait()
+            timer.stop(f"step/{step}/mb_{mb_idx-2}/gather_wait")
+
+        if prev_dispatch is not None:
+            timer.start(f"step/{step}/mb_{mb_idx-1}/compute")
+            prev_out = moe.compute_experts(
+                prev_dispatch.tokens, prev_dispatch.local_expert_ids,
+            )
+            timer.stop(f"step/{step}/mb_{mb_idx-1}/compute")
+
+            timer.start(f"step/{step}/mb_{mb_idx-1}/gather")
+            gathered_prev, prev_gather_handle = gather_tokens(
+                prev_out, prev_dispatch, transport, async_op=True,
+            )
+            timer.stop(f"step/{step}/mb_{mb_idx-1}/gather")
+
+            timer.start(f"step/{step}/mb_{mb_idx-1}/combine")
+            _combined = combine_expert_outputs(gathered_prev, prev_gate_weights)
+            timer.stop(f"step/{step}/mb_{mb_idx-1}/combine")
+
+        prev_gate_weights = gate_weights
+
+    if scatter_handle is not None:
+        last = num_mbs - 1
+        timer.start(f"step/{step}/mb_{last}/scatter_wait")
+        scatter_handle.wait()
+        timer.stop(f"step/{step}/mb_{last}/scatter_wait")
+        prev_dispatch = scatter_result
+
+    if prev_gather_handle is not None:
+        second_last = num_mbs - 2
+        timer.start(f"step/{step}/mb_{second_last}/gather_wait")
+        prev_gather_handle.wait()
+        timer.stop(f"step/{step}/mb_{second_last}/gather_wait")
+
+    if prev_dispatch is not None:
+        last = num_mbs - 1
+        timer.start(f"step/{step}/mb_{last}/compute")
+        prev_out = moe.compute_experts(
+            prev_dispatch.tokens, prev_dispatch.local_expert_ids,
+        )
+        timer.stop(f"step/{step}/mb_{last}/compute")
+
+        timer.start(f"step/{step}/mb_{last}/gather")
+        gathered_last = gather_tokens(prev_out, prev_dispatch, transport, async_op=False)
+        timer.stop(f"step/{step}/mb_{last}/gather")
+
+        timer.start(f"step/{step}/mb_{last}/combine")
+        _combined = combine_expert_outputs(gathered_last, prev_gate_weights)
+        timer.stop(f"step/{step}/mb_{last}/combine")
+    # --- end run_ocs_preset ---

@@ -18,7 +18,7 @@ import torch
 from src.runtime.process_group import init_process_group, cleanup_process_group, get_rank
 from src.runtime.scheduler import (
     run_serial, run_overlap, run_train_serial,
-    run_ocs_pipeline, run_ocs_dbo,
+    run_ocs_pipeline, run_ocs_dbo, run_ocs_preset,
     broadcast_model_params,
 )
 from src.model.moe_layer import MoELayer
@@ -271,6 +271,40 @@ def worker(
                         eids, gws, _ = moe.router(tokens)
                     affinity_tracker.record_routing(eids, gws)
             run_ocs_dbo(
+                step=step,
+                microbatches=microbatches,
+                moe=moe,
+                transport=transport,
+                timer=timer,
+            )
+    elif mode == "ocs_preset":
+        # Pre-load circuits from training-derived placement plan
+        preset_cfg = ocs_cfg.get("preset", {})
+        preset_source = preset_cfg.get("source", "trace")
+        if preset_source == "plan":
+            plan_path = preset_cfg.get("plan_path", "")
+            if plan_path and ocs_pool is not None:
+                from src.ocs.preconfig import load_plan
+                plan = load_plan(plan_path)
+                if hasattr(ocs_pool, "pre_config"):
+                    n = ocs_pool.pre_config(plan)
+                    log(rank, f"OCS preset: loaded {n} circuits from plan {plan_path}")
+        elif preset_source == "trace" and affinity_tracker is not None:
+            # Build plan from the affinity tracker (populated during training)
+            for tokens in microbatches:
+                with torch.no_grad():
+                    eids, gws, _ = moe.router(tokens)
+                affinity_tracker.record_routing(eids, gws)
+            plan = affinity_tracker.compute_circuit_plan(
+                experts_per_rank=experts_per_rank,
+                world_size=world_size,
+                max_circuits=ocs_cfg.get("max_circuits", 16),
+            )
+            if hasattr(ocs_pool, "pre_config"):
+                n = ocs_pool.pre_config(plan)
+                log(rank, f"OCS preset: pre-established {n} circuits from affinity")
+        for step in range(num_steps):
+            run_ocs_preset(
                 step=step,
                 microbatches=microbatches,
                 moe=moe,

@@ -122,3 +122,70 @@ def ocs_step_metrics(events: List[TimerEvent]) -> dict:
     base["effective_comm_pct"] = (comm_us / total * 100) if total > 0 else 0
 
     return base
+
+
+# ── Preset-specific metrics ──────────────────────────────────────────────
+
+
+def ocs_preset_metrics(
+    events: List[TimerEvent],
+    ocs_pool_metrics: dict = None,
+) -> dict:
+    """Metrics specific to OCS preset mode.
+
+    Args:
+        events: timer events from a preset-mode run.
+        ocs_pool_metrics: dict from transport.get_ocs_metrics().
+
+    Returns dict with:
+      - ocs_hit_rate: fraction of A2A target pairs already in OCS pool
+      - zero_reconfig_rate: fraction of transfers requiring 0 reconfig time
+      - preset_utilization: fraction of pre-established circuits actually used
+      - per_step_latency_us: list of per-step total latencies
+      - total_reconfig_us: total reconfig time (should be near 0 in preset)
+    """
+    result = {
+        "ocs_hit_rate": 0.0,
+        "zero_reconfig_rate": 0.0,
+        "preset_utilization": 0.0,
+        "per_step_latency_us": [],
+        "total_reconfig_us": 0.0,
+    }
+
+    if ocs_pool_metrics:
+        total_req = max(ocs_pool_metrics.get("total_requests", 1), 1)
+        reuse = ocs_pool_metrics.get("circuit_reuses", 0)
+        establish = ocs_pool_metrics.get("circuit_establishes", 0)
+        active = ocs_pool_metrics.get("active_circuits", 0)
+        max_c = ocs_pool_metrics.get("max_circuits", 1)
+
+        result["ocs_hit_rate"] = reuse / total_req
+        result["zero_reconfig_rate"] = (total_req - establish) / total_req
+        result["preset_utilization"] = active / max_c if max_c > 0 else 0.0
+        result["total_reconfig_us"] = ocs_pool_metrics.get(
+            "total_reconfig_time_us", 0.0,
+        )
+
+    # Per-step latencies
+    step_events = {}
+    for ev in events:
+        parts = ev.name.split("/")
+        if len(parts) >= 2 and parts[0].startswith("step"):
+            step_key = parts[0]
+            if step_key not in step_events:
+                step_events[step_key] = {"start": ev.start_ns, "end": ev.end_ns}
+            else:
+                step_events[step_key]["start"] = min(
+                    step_events[step_key]["start"], ev.start_ns,
+                )
+                step_events[step_key]["end"] = max(
+                    step_events[step_key]["end"], ev.end_ns,
+                )
+
+    result["per_step_latency_us"] = [
+        (v["end"] - v["start"]) / 1000.0
+        for v in sorted(step_events.values(), key=lambda x: x["start"])
+    ]
+
+    return result
+

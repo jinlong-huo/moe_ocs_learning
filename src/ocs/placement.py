@@ -6,13 +6,13 @@ This minimizes OCS reconfiguration by keeping frequently communicating
 expert pairs on the same rank (intra-rank transfer = no circuit needed)
 or on ranks with stable circuits.
 
-The tracker is sampling-based: it records routing decisions during warm-up
-steps and produces placement suggestions offline. Online re-placement
-(remapping experts mid-training) is deferred to future work.
+The tracker is sampling-based: it records routing decisions during training
+and produces circuit placement plans for inference pre-configuration.
 """
 from __future__ import annotations
 
-from typing import List
+import json
+from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -26,7 +26,7 @@ class ExpertAffinityTracker:
     The resulting affinity matrix can be used to:
       - Suggest expert-to-rank placement minimizing inter-rank communication
       - Estimate OCS circuit pressure (many distinct pairs = many circuits needed)
-      - Evaluate whether the current placement matches actual routing patterns
+      - Pre-configure OCS circuits for inference based on training patterns
 
     Usage:
         tracker = ExpertAffinityTracker(num_experts)
@@ -34,38 +34,39 @@ class ExpertAffinityTracker:
             expert_ids, gate_weights, _ = moe.router(tokens)
             tracker.record_routing(expert_ids, gate_weights)
         suggested_placement = tracker.suggest_placement(experts_per_rank, world_size)
+        # For OCS preset: export training affinity, use in inference
+        plan = tracker.compute_circuit_plan(expert_to_rank, max_circuits=16)
     """
 
     def __init__(self, num_experts: int):
         self.num_experts = num_experts
-        # co_activation[e_a, e_b] = how often expert a and b were selected together
         self.co_activation_counts = torch.zeros(num_experts, num_experts, dtype=torch.float64)
-        # per-expert usage count (for top-1 or load-aware placement)
         self.expert_usage = torch.zeros(num_experts, dtype=torch.float64)
         self.total_samples = 0
+        self._phase = "default"
 
     def record_routing(
         self,
-        expert_ids: torch.Tensor,   # [T] or [T, K]
-        gate_weights: torch.Tensor, # [T, K]
+        expert_ids: torch.Tensor,
+        gate_weights: torch.Tensor,
+        phase: Optional[str] = None,
     ) -> None:
         """Record one routing event.
 
         Args:
             expert_ids: expert assignments. Shape [T] for top-1, [T, K] for top-K.
             gate_weights: routing weights, shape [T, K].
+            phase: optional phase label ("training", "inference", "warmup").
         """
         T = expert_ids.shape[0]
 
         if expert_ids.dim() == 1:
-            # top-1: record per-expert usage
             for e in expert_ids.unique():
                 count = (expert_ids == e).sum().item()
                 self.co_activation_counts[e, e] += count
                 self.expert_usage[e] += count
             self.total_samples += T
         else:
-            # top-K: record pairwise co-selection
             K = expert_ids.shape[1]
             self.total_samples += T
 
@@ -86,13 +87,102 @@ class ExpertAffinityTracker:
         if self.total_samples == 0:
             return torch.zeros(self.num_experts, self.num_experts)
 
-        # Normalize by per-expert usage so each row sums to K (top-K co-selection)
         normalized = self.co_activation_counts.clone()
         for e in range(self.num_experts):
             if self.expert_usage[e] > 0:
                 normalized[e] /= self.expert_usage[e]
 
         return normalized
+
+    def export_affinity(self) -> Dict:
+        """Export co-activation counts and usage as a serializable dict.
+
+        Returns:
+            Dict with keys: num_experts, total_samples, expert_usage (list),
+            co_activation_counts (list of lists), and normalized co_activation
+            matrix (flattened). Suitable for JSON serialization.
+        """
+        affinity = self.get_affinity_scores()
+        return {
+            "num_experts": self.num_experts,
+            "total_samples": self.total_samples,
+            "expert_usage": self.expert_usage.tolist(),
+            "co_activation_raw": self.co_activation_counts.tolist(),
+            "co_activation_norm": affinity.tolist(),
+        }
+
+    def export_affinity_json(self, path: str) -> None:
+        """Save affinity data to a JSON file."""
+        data = self.export_affinity()
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+
+    def load_affinity_from_export(self, data: Dict) -> None:
+        """Load affinity from a previously exported dict."""
+        self.num_experts = data["num_experts"]
+        self.total_samples = data["total_samples"]
+        self.expert_usage = torch.tensor(data["expert_usage"], dtype=torch.float64)
+        self.co_activation_counts = torch.tensor(
+            data["co_activation_raw"], dtype=torch.float64,
+        )
+
+    def compute_circuit_plan(
+        self,
+        expert_to_rank: Optional[Dict[int, int]] = None,
+        max_circuits: int = 16,
+        experts_per_rank: int = 1,
+        world_size: int = 4,
+    ) -> List[Tuple[int, int, float]]:
+        """Compute an OCS circuit placement plan from co-activation affinity.
+
+        Maps expert co-activation to rank-pair communication pressure, then
+        returns an ordered list of (src_rank, dst_rank, score) tuples sorted
+        by descending affinity score — the recommended circuit placement order.
+
+        Args:
+            expert_to_rank: optional pre-built expert→rank mapping. If None,
+                expert e maps to rank (e // experts_per_rank).
+            max_circuits: cap on number of circuits in the plan (returns top-K).
+            experts_per_rank: experts per GPU rank (used if expert_to_rank is None).
+            world_size: number of ranks (used if expert_to_rank is None).
+
+        Returns:
+            List of (src_rank, dst_rank, affinity_score) sorted by score descending.
+            The plan should be applied in order: establish circuits for the
+            highest-scoring rank pairs first, up to max_circuits.
+        """
+        if expert_to_rank is None:
+            expert_to_rank = {
+                e: e // experts_per_rank for e in range(self.num_experts)
+            }
+
+        affinity = self.get_affinity_scores()
+
+        rank_pair_scores: Dict[Tuple[int, int], float] = {}
+        for ea in range(self.num_experts):
+            ra = expert_to_rank.get(ea)
+            if ra is None:
+                continue
+            for eb in range(self.num_experts):
+                rb = expert_to_rank.get(eb)
+                if rb is None:
+                    continue
+                if ra == rb:
+                    continue
+                score = affinity[ea, eb].item()
+                if score > 0:
+                    key = (ra, rb)
+                    rank_pair_scores[key] = max(
+                        rank_pair_scores.get(key, 0.0), score,
+                    )
+
+        sorted_pairs = sorted(
+            rank_pair_scores.items(), key=lambda x: x[1], reverse=True,
+        )
+        plan = [
+            (src, dst, score) for (src, dst), score in sorted_pairs[:max_circuits]
+        ]
+        return plan
 
     def suggest_placement(
         self,
@@ -113,14 +203,12 @@ class ExpertAffinityTracker:
         affinity = self.get_affinity_scores()
         total_experts = world_size * experts_per_rank
 
-        # If no data or affinity is uniform, fall back to round-robin
         if self.total_samples == 0 or total_experts != self.num_experts:
             return [
                 list(range(r * experts_per_rank, (r + 1) * experts_per_rank))
                 for r in range(world_size)
             ]
 
-        # Greedy clustering
         remaining = set(range(self.num_experts))
         placement: List[List[int]] = [[] for _ in range(world_size)]
 
@@ -129,7 +217,6 @@ class ExpertAffinityTracker:
                 break
             slots = experts_per_rank
 
-            # Pick seed: expert with highest total affinity to all other remaining experts
             if len(placement[rank]) == 0:
                 best_seed = -1
                 best_score = -1.0
@@ -143,7 +230,6 @@ class ExpertAffinityTracker:
                     remaining.remove(best_seed)
                     slots -= 1
 
-            # Fill remaining slots with most co-activated experts
             while slots > 0 and remaining:
                 best_expert = -1
                 best_score = -1.0
@@ -162,7 +248,6 @@ class ExpertAffinityTracker:
                 else:
                     break
 
-        # Distribute any remaining experts round-robin
         for i, e in enumerate(sorted(remaining)):
             placement[i % world_size].append(e)
 

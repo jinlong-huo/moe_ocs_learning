@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
-"""Compare identical workloads with OCS disabled vs. enabled.
+"""Compare identical workloads: EPS baseline vs OCS runtime vs OCS preset.
 
-Runs the same experiment twice — once without OCS (baseline), once with
-OCS pipeline mode — and produces a side-by-side comparison report.
-
-The comparison isolates the effect of OCS circuit dynamics on:
-  - Total wall time per step
-  - Communication overhead (comm as % of total)
-  - OCS-specific: circuit reuse ratio, reconfig time, effective overlap
+Runs the same experiment up to three times and produces a side-by-side
+comparison report. The preset mode tests whether training-time affinity
+patterns can pre-configure OCS circuits for inference.
 
 Usage:
   python scripts/compare_ocs.py
+  python scripts/compare_ocs.py --mode all  # EPS + runtime + preset
+  python scripts/compare_ocs.py --mode preset  # preset only
   python scripts/compare_ocs.py --trace-dir outputs/traces/ocs_comparison
-  python scripts/compare_ocs.py --steps 10 --microbatches 4
-
-Prints a JSON report to stdout and writes a detailed HTML report to disk.
 """
 from __future__ import annotations
 
@@ -94,37 +89,45 @@ def load_trace_metrics(trace_dir: str, rank: int = 0) -> dict:
     }
 
 
-def build_comparison(baseline: dict, ocs: dict) -> dict:
-    """Build side-by-side comparison dict."""
+def build_comparison(baseline: dict, ocs: dict, preset: dict = None) -> dict:
+    """Build side-by-side comparison dict. Supports 2-way or 3-way."""
     comparison = {
         "baseline": baseline,
         "ocs_enabled": ocs,
     }
+    if preset:
+        comparison["ocs_preset"] = preset
 
-    # Compute deltas
-    if baseline.get("total_us", 0) > 0 and ocs.get("total_us", 0) > 0:
+    # Compute deltas vs baseline
+    if baseline.get("total_us", 0) > 0:
         baseline_total = baseline["total_us"]
-        ocs_total = ocs["total_us"]
-        comparison["delta"] = {
-            "total_us_absolute": ocs_total - baseline_total,
-            "total_us_pct": ((ocs_total - baseline_total) / baseline_total) * 100,
-            "comm_us_absolute": ocs.get("comm_us", 0) - baseline.get("comm_us", 0),
-            "ocs_us": ocs.get("ocs_us", 0),
-        }
+        for label, other in [("ocs_enabled", ocs), ("ocs_preset", preset)]:
+            if other is None or other.get("total_us", 0) <= 0:
+                continue
+            other_total = other["total_us"]
+            comparison[f"delta_{label}"] = {
+                "total_us_absolute": other_total - baseline_total,
+                "total_us_pct": ((other_total - baseline_total) / baseline_total) * 100,
+                "comm_us_absolute": other.get("comm_us", 0) - baseline.get("comm_us", 0),
+                "ocs_us": other.get("ocs_us", 0),
+            }
 
     # OCS-specific summary
-    ocs_metrics = ocs.get("ocs", {})
-    if ocs_metrics:
-        total_req = max(ocs_metrics.get("total_requests", 1), 1)
-        comparison["ocs_summary"] = {
-            "circuit_reuses": ocs_metrics.get("circuit_reuses", 0),
-            "circuit_establishes": ocs_metrics.get("circuit_establishes", 0),
-            "circuit_evictions": ocs_metrics.get("circuit_evictions", 0),
-            "total_reconfig_time_us": ocs_metrics.get("total_reconfig_time_us", 0),
-            "reuse_ratio": ocs_metrics.get("reuse_ratio", 0),
-            "active_circuits": ocs_metrics.get("active_circuits", 0),
-            "max_circuits": ocs_metrics.get("max_circuits", 0),
-        }
+    for label, other in [("ocs_enabled", ocs), ("ocs_preset", preset)]:
+        if other is None:
+            continue
+        ocs_metrics = other.get("ocs", {})
+        if ocs_metrics:
+            total_req = max(ocs_metrics.get("total_requests", 1), 1)
+            comparison[f"ocs_summary_{label}"] = {
+                "circuit_reuses": ocs_metrics.get("circuit_reuses", 0),
+                "circuit_establishes": ocs_metrics.get("circuit_establishes", 0),
+                "circuit_evictions": ocs_metrics.get("circuit_evictions", 0),
+                "total_reconfig_time_us": ocs_metrics.get("total_reconfig_time_us", 0),
+                "reuse_ratio": ocs_metrics.get("reuse_ratio", 0),
+                "active_circuits": ocs_metrics.get("active_circuits", 0),
+                "max_circuits": ocs_metrics.get("max_circuits", 0),
+            }
 
     return comparison
 
@@ -254,15 +257,20 @@ def build_html_report(comparison: dict) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compare OCS-enabled vs baseline MoE workloads",
+        description="Compare OCS modes (preset / runtime) vs EPS baseline",
     )
     parser.add_argument(
         "--trace-dir", default="outputs/traces/ocs_comparison",
-        help="Directory for trace output (default: outputs/traces/ocs_comparison)",
+        help="Directory for trace output",
     )
     parser.add_argument(
         "--output", "-o", default=None,
-        help="Output HTML path (default: <trace-dir>/ocs_comparison.html)",
+        help="Output HTML path",
+    )
+    parser.add_argument(
+        "--mode", default="all",
+        choices=["baseline", "ocs", "preset", "all", "baseline+ocs"],
+        help="Which modes to run and compare",
     )
     parser.add_argument(
         "--base-config", default=os.path.join(PROJECT_DIR, "configs/compare_ocs_base.yaml"),
@@ -270,77 +278,92 @@ def main():
     )
     parser.add_argument(
         "--ocs-config", default=os.path.join(PROJECT_DIR, "configs/compare_ocs_on.yaml"),
-        help="OCS-enabled config path",
+        help="OCS runtime config path",
+    )
+    parser.add_argument(
+        "--preset-config", default=os.path.join(PROJECT_DIR, "configs/ocs_preset.yaml"),
+        help="OCS preset config path",
     )
     parser.add_argument(
         "--skip-run", action="store_true",
-        help="Skip running experiments; just generate report from existing traces",
+        help="Skip experiments; use existing traces",
     )
     args = parser.parse_args()
 
     os.makedirs(args.trace_dir, exist_ok=True)
+    run_modes = set()
+    if args.mode in ("all", "baseline", "baseline+ocs"):
+        run_modes.add("baseline")
+    if args.mode in ("all", "ocs", "baseline+ocs"):
+        run_modes.add("ocs")
+    if args.mode in ("all", "preset"):
+        run_modes.add("preset")
 
     baseline_dir = os.path.join(args.trace_dir, "baseline")
-    ocs_dir = os.path.join(args.trace_dir, "ocs")
+    ocs_dir = os.path.join(args.trace_dir, "ocs_runtime")
+    preset_dir = os.path.join(args.trace_dir, "ocs_preset")
 
     if not args.skip_run:
-        print("=" * 60)
-        print("Running baseline (EPS, no OCS)...")
-        print("=" * 60)
-        ok_base = run_experiment(args.base_config, baseline_dir)
-        if not ok_base:
-            print("ERROR: Baseline experiment failed. Aborting.", file=sys.stderr)
-            sys.exit(1)
+        if "baseline" in run_modes:
+            print("=" * 60)
+            print("Running baseline (EPS, no OCS)...")
+            print("=" * 60)
+            if not run_experiment(args.base_config, baseline_dir):
+                print("ERROR: Baseline experiment failed.", file=sys.stderr)
+                sys.exit(1)
+            print()
 
-        print()
-        print("=" * 60)
-        print("Running OCS pipeline...")
-        print("=" * 60)
-        ok_ocs = run_experiment(args.ocs_config, ocs_dir)
-        if not ok_ocs:
-            print("ERROR: OCS experiment failed. Aborting.", file=sys.stderr)
-            sys.exit(1)
+        if "ocs" in run_modes:
+            print("=" * 60)
+            print("Running OCS pipeline (runtime reconfig)...")
+            print("=" * 60)
+            if not run_experiment(args.ocs_config, ocs_dir):
+                print("ERROR: OCS experiment failed.", file=sys.stderr)
+                sys.exit(1)
+            print()
 
-        print()
+        if "preset" in run_modes:
+            print("=" * 60)
+            print("Running OCS preset (pre-configured circuits)...")
+            print("=" * 60)
+            if not run_experiment(args.preset_config, preset_dir):
+                print("ERROR: OCS preset experiment failed.", file=sys.stderr)
+                sys.exit(1)
+            print()
     else:
         print("Skipping experiment runs (--skip-run), using existing traces.")
 
-    # Load and compare
-    baseline_metrics = load_trace_metrics(baseline_dir)
-    ocs_metrics = load_trace_metrics(ocs_dir)
+    baseline_metrics = load_trace_metrics(baseline_dir) if "baseline" in run_modes or not args.skip_run else {}
+    ocs_metrics = load_trace_metrics(ocs_dir) if "ocs" in run_modes or not args.skip_run else {}
+    preset_metrics = load_trace_metrics(preset_dir) if "preset" in run_modes or not args.skip_run else {}
 
-    if not baseline_metrics or not ocs_metrics:
-        print("ERROR: Could not load trace metrics. Run experiments first.", file=sys.stderr)
-        sys.exit(1)
+    comparison = build_comparison(
+        baseline_metrics, ocs_metrics,
+        preset=preset_metrics if preset_metrics else None,
+    )
 
-    comparison = build_comparison(baseline_metrics, ocs_metrics)
-
-    # Print JSON report
     print("=" * 60)
     print("Comparison Report (JSON)")
     print("=" * 60)
     print(json.dumps(comparison, indent=2, default=str))
 
-    # Generate HTML report
     html = build_html_report(comparison)
     html_path = args.output or os.path.join(args.trace_dir, "ocs_comparison.html")
     with open(html_path, "w") as f:
         f.write(html)
-
-    print(f"\nHTML report → {html_path}")
+    print(f"\nHTML report -> {html_path}")
 
     # Quick summary
-    delta = comparison.get("delta", {})
-    ocs_summary = comparison.get("ocs_summary", {})
     print(f"\nSummary:")
-    print(f"  Baseline total:  {baseline_metrics.get('total_us', 0):.0f} µs")
-    print(f"  OCS total:       {ocs_metrics.get('total_us', 0):.0f} µs")
-    if delta:
-        print(f"  Delta:           {delta.get('total_us_absolute', 0):+.0f} µs ({delta.get('total_us_pct', 0):+.1f}%)")
-    if ocs_summary:
-        reuse = ocs_summary.get("reuse_ratio", 0)
-        print(f"  Circuit reuse:   {reuse*100:.1f}%")
-        print(f"  Reconfig time:   {ocs_summary.get('total_reconfig_time_us', 0):.0f} µs")
+    if baseline_metrics:
+        print(f"  EPS baseline:   {baseline_metrics.get('total_us', 0):.0f} µs")
+    if ocs_metrics:
+        print(f"  OCS runtime:    {ocs_metrics.get('total_us', 0):.0f} µs")
+    if preset_metrics:
+        print(f"  OCS preset:     {preset_metrics.get('total_us', 0):.0f} µs")
+        ocs_preset_m = preset_metrics.get("ocs", {})
+        print(f"  Preset reuse:   {ocs_preset_m.get('reuse_ratio', 0)*100:.1f}%")
+        print(f"  Preset reconfig:{ocs_preset_m.get('total_reconfig_time_us', 0):.0f} µs")
 
 
 if __name__ == "__main__":

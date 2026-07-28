@@ -38,6 +38,7 @@ class OcsCircuit:
     bw_gbps: float = 200.0
     established_at_ns: int = 0
     last_used_at_ns: int = 0
+    pre_established: bool = False
 
 
 @dataclass
@@ -146,6 +147,52 @@ class OcsCircuitPool:
         self._circuits[key] = circuit
         self.metrics.total_reconfig_time_us += self.reconfig_time_us
         return self.reconfig_time_us
+
+    def pre_config(
+        self,
+        plan: list,
+        current_time_ns: int = 0,
+    ) -> int:
+        """Batch-establish circuits from a pre-computed placement plan.
+
+        The plan is a list of (src_rank, dst_rank, score) tuples sorted by
+        descending affinity score. Circuits are established in order, filling
+        the pool up to max_circuits. Pre-established circuits are tagged so
+        that metrics can distinguish training-time reconfig from inference-time
+        pre-config.
+
+        Used for inference preset mode: the plan is computed from training
+        affinity data, then pre-loaded before the first token is processed.
+        No runtime reconfiguration is incurred for pre-established circuits.
+
+        Returns:
+            Number of circuits pre-established (may be fewer than plan if pool
+            fills up).
+        """
+        established = 0
+        for src, dst, _score in plan:
+            if len(self._circuits) >= self.max_circuits:
+                break
+            key = (src, dst)
+            if key in self._circuits:
+                continue
+            circuit = OcsCircuit(
+                src_rank=src,
+                dst_rank=dst,
+                state=OcsCircuitState.ACTIVE,
+                bw_gbps=self.circuit_bw_gbps,
+                established_at_ns=current_time_ns,
+                last_used_at_ns=current_time_ns,
+                pre_established=True,
+            )
+            self._circuits[key] = circuit
+            self.metrics.circuit_establishes += 1
+            established += 1
+        return established
+
+    def pre_established_count(self) -> int:
+        """Number of circuits that were pre-established (preset mode)."""
+        return sum(1 for c in self._circuits.values() if c.pre_established)
 
     def compute_delay(
         self, src: int, dst: int, tensor_bytes: int, current_time_ns: int = 0,

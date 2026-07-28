@@ -2,6 +2,8 @@
 
 CPU-based MoE overlap-algorithm testbed. Real all-to-all over TCP via PyTorch Gloo with per-rank expert-parallelism, top-K gating, hierarchical topology delay modeling, and **OCS (Optical Circuit Switching)** circuit-pool simulation. Verifies mechanism correctness *before* GPU cluster deployment.
 
+**New: OCS Preset mode** — pre-configure OCS circuits from training-time routing affinity for zero-reconfig inference. [`docs/ocs_pretrigger_research_discussion.md`](docs/ocs_pretrigger_research_discussion.md)
+
 ## Quick Start
 
 ```bash
@@ -42,6 +44,90 @@ python3 -m src.launcher --config configs/qwen_ocs_dbo.yaml
 # View results
 open outputs/traces/trace_viewer.html    # interactive HTML (click "EP Layout")
 open outputs/traces/ocs_view.html        # OCS circuit analysis
+
+# --- OCS Preset: training → inference pre-configuration ---
+
+# Compute placement plan from training trace
+python3 scripts/compute_preset_plan.py \
+    --trace data/routing_traces/routing.json \
+    --output outputs/preset_plan.json \
+    --max-circuits 16 --experts-per-rank 64 --world-size 4
+
+# Validate training-to-inference affinity consistency
+python3 scripts/validate_affinity.py \
+    --train-trace data/routing_traces/routing_pretrained.json \
+    --infer-trace data/routing_traces/routing_finetuned.json \
+    --num-experts 256 --top-k 8
+
+# Run preset inference (circuits pre-configured, zero runtime reconfig)
+python3 -m src.launcher --config configs/ocs_preset.yaml
+
+# Full pipeline: train → plan → preset → compare
+bash scripts/run_preset_pipeline.sh data/routing_traces/routing.json
+```
+
+## OCS Preset: Training → Inference Pre-Configuration
+
+The core research question: can **training-time expert routing patterns** predict inference-time OCS circuit needs well enough to pre-configure the fabric *before* inference begins?
+
+### Pipeline
+
+```
+Training Phase                    Inference Phase
+─────────────                     ────────────────
+Router outputs                   ┌──────────────┐
+  ↓                              │ Pre-configure │
+ExpertAffinityTracker            │ OCS circuits  │
+(co-activation counts)           │ from plan     │
+  ↓                              └──────┬───────┘
+compute_circuit_plan()                  ↓
+(expert pairs → rank pairs)       Zero reconfig
+  ↓                              during inference
+Export plan JSON                 (all circuits hot)
+```
+
+### Modes
+
+| Mode | Reconfig | When Circuits Established | Use Case |
+|------|----------|--------------------------|----------|
+| `ocs_pipeline` | Per-microbatch, inline | Before each scatter | Runtime adaptability |
+| `ocs_dbo` | Hidden behind compute | Batch K+1 during batch K | Mask reconfig latency |
+| **`ocs_preset`** | **None during inference** | **Before first token** | **Training→inference pre-config** |
+
+### Preset Strategies
+
+| Strategy | Source | Expected Hit Rate |
+|----------|--------|-------------------|
+| `oracle` | Inference trace itself | Upper bound (~100%) |
+| `affinity` | Training co-activation matrix | Depends on train/inference correlation |
+| `volume` | Training traffic volume | Good for bandwidth-bound workloads |
+| `random` | Random circuits | Lower bound |
+| `none` | EPS baseline (no OCS) | Control |
+
+### Key Metrics (`src/eval/affinity_consistency.py`)
+
+- **JS divergence**: per-layer Jensen-Shannon divergence of expert distributions (0 = identical)
+- **Top-K overlap**: fraction of tokens with matching expert assignments
+- **Affinity correlation**: Pearson R between training and inference co-activation matrices
+- **Estimated hit rate**: theoretical OCS hit rate from training affinity
+- **Preset viability**: `high` (>0.7), `medium` (0.4–0.7), `low` (<0.4)
+
+### OCS Preset Metrics (`src/eval/metrics.py`)
+
+- **ocs_hit_rate**: fraction of A2A target pairs already in pool
+- **zero_reconfig_rate**: fraction of transfers incurring 0 reconfig
+- **preset_utilization**: fraction of pre-established circuits actually used
+- **per_step_latency_us**: wall time per inference step
+
+### Comparison Workflow
+
+```bash
+# Three-way comparison: EPS baseline vs OCS runtime vs OCS preset
+python scripts/compare_ocs.py --mode all
+open outputs/traces/ocs_comparison/ocs_comparison.html
+
+# Preset-only comparison
+python scripts/compare_ocs.py --mode preset
 ```
 
 ## Architecture
@@ -147,7 +233,14 @@ ocs_dbo (lookahead):
 
 **Circuit pool**: Implemented as `OrderedDict` keyed by `(src_rank, dst_rank)` — O(1) LRU eviction via `popitem(last=False)`, hot-path via `move_to_end()`. When pool is full and a new circuit is needed, the least recently used circuit is evicted and its optical path is reclaimed.
 
-**Expert affinity tracking** (`src/ocs/placement.py`): Tracks co-activation counts from router outputs. A greedy clustering algorithm suggests expert-to-rank placements that group frequently co-activated experts on the same rank, minimizing cross-rank circuit reconfigurations.
+**Expert affinity tracking** (`src/ocs/placement.py`): Tracks co-activation counts from router outputs. A greedy clustering algorithm suggests expert-to-rank placements that group frequently co-activated experts on the same rank, minimizing cross-rank circuit reconfigurations. **New:** `export_affinity()` saves co-activation data for cross-phase analysis. `compute_circuit_plan()` converts affinity to an ordered rank-pair circuit placement list.
+
+### OCS Pre-Configuration Pipeline (`src/ocs/preconfig.py`)
+
+```
+RoutingTrace → ExpertAffinityTracker → compute_circuit_plan() → placement plan JSON
+    (train)         (co-activation)        (rank pairs)            (preset input)
+```
 
 ## Project Structure
 
@@ -157,6 +250,7 @@ src/
 ├── model/
 │   ├── moe_layer.py             # MoELayer: ModuleList[experts], set_rank(), expert_id_to_local()
 │   ├── router.py                # fixed | top1 | top2 | uniform_random
+│   ├── router_replay.py         # ReplayRouter, LayerCyclingReplayRouter (trace-driven routing)
 │   └── experts.py               # TinyExpert (Linear) | FFNExpert (Linear->GELU->Linear)
 ├── comm/
 │   ├── all_to_all.py            # scatter_tokens, gather_tokens, combine_expert_outputs, DispatchResult
@@ -167,13 +261,26 @@ src/
 ├── ocs/
 │   ├── circuit.py               # OcsCircuit, OcsCircuitPool (OrderedDict LRU), OcsPoolMetrics
 │   ├── topology.py              # OcsTopologyConfig, OcsTopology wrapper
-│   └── placement.py             # ExpertAffinityTracker (co-activation → greedy clustering)
+│   ├── placement.py             # ExpertAffinityTracker (co-activation → greedy clustering)
+│   └── preconfig.py             # NEW: RoutingTrace → affinity → circuit plan pipeline
 ├── runtime/
 │   ├── worker.py                # Per-rank: init PG, build MoE+Transport+Topology+OCS, run scheduler
-│   ├── scheduler.py             # run_serial, run_overlap, run_ocs_pipeline, run_ocs_dbo
+│   ├── scheduler.py             # run_serial, run_overlap, run_ocs_pipeline, run_ocs_dbo, run_ocs_preset
 │   └── process_group.py         # dist.init_process_group / cleanup
+├── train/
+│   ├── trainer.py               # Trainer: epoch loop, metrics, checkpointing
+│   ├── step.py                  # train_step_serial (forward→loss→backward→step)
+│   ├── loss.py                  # task_loss (MSE) + load_balance_loss (Switch Transformer)
+│   └── microbatch.py            # split_microbatches utility
+├── data/
+│   ├── synthetic.py             # SyntheticMixtureDataset (K Gaussian modes)
+│   ├── routing_schema.py        # RoutingTrace, TokenRoute, LayerRoute, RunMeta dataclasses
+│   ├── routing_capture.py       # HF inference hook for routing trace capture
+│   ├── routing_interventions.py # RouterSteering: force/bias/ablate experts
+│   └── model_utils.py           # ModelLayout introspection
 ├── eval/
-│   ├── metrics.py               # compute_overlap_ratio, ocs_overlap_ratio, ocs_step_metrics
+│   ├── metrics.py               # overlap_ratio, ocs_overlap_ratio, ocs_step_metrics, ocs_preset_metrics
+│   ├── affinity_consistency.py  # NEW: JS divergence, top-K overlap, affinity correlation, estimated hit rate
 │   ├── profiler.py              # Multi-rank trace aggregation + ocs_summary()
 │   └── plots.py                 # Gantt charts (matplotlib optional)
 └── utils/                       # timer (ns-precision), logging, seed
@@ -186,6 +293,8 @@ configs/
 ├── mac_cpu.yaml                 # Overlap mode + 200µs flat delay
 ├── ocs_demo.yaml                # OCS pipeline mode, 50µs reconfig, 8-circuit pool
 ├── ocs_dbo_demo.yaml            # OCS dual-batch overlap, 100µs reconfig, 4 microbatches
+├── ocs_preset.yaml              # NEW: OCS preset mode — pre-configured circuits, zero runtime reconfig
+├── preset_ablation.yaml         # NEW: Ablation: oracle/affinity/volume/random/none strategies
 ├── compare_ocs_base.yaml        # Baseline for OCS comparison (overlap + EPS, no OCS)
 ├── compare_ocs_on.yaml          # OCS counterpart (ocs_pipeline, same workload)
 ├── routing_replay.yaml          # Replay captured routing traces with synthetic experts
@@ -201,7 +310,14 @@ scripts/
 ├── run_synthetic.sh             # One-command: serial or overlap mode
 ├── trace_viz.py                 # Standalone HTML viewer (EP panel, topology groups, overlap stat)
 ├── ocs_viz.py                   # OCS circuit viewer (per-rank stats, reuse bars, event timeline)
-├── compare_ocs.py               # A/B comparison runner (overlap vs ocs_pipeline → HTML report)
+├── compare_ocs.py               # A/B/C comparison (EPS/OCS-runtime/OCS-preset → HTML report)
+├── compute_preset_plan.py       # NEW: CLI — trace → circuit placement plan JSON
+├── validate_affinity.py         # NEW: CLI — train vs inference affinity consistency report
+├── run_preset_pipeline.sh       # NEW: End-to-end pipeline: train → plan → preset → compare
+├── export_qwen_experts.py       # Extract Qwen MoE weights (MLX or safetensors) → per-expert .npz
+├── run_research.py              # HF-based CLI: run/analyze/compare/intervene/ablate
+├── analyze_routing_for_ocs.py   # Route trace → OCS placement analysis
+├── visualize_routing.py         # 4-panel: routing agreement, expert load, gain/loss
 └── merge_traces.py              # Merge per-rank traces for chrome://tracing
 ```
 
@@ -216,7 +332,7 @@ scripts/
 | `model.expert_type`          | `tiny` (Linear) or `ffn` (2-layer GELU)                                 | `tiny`        |
 | `model.top_k`                | Top-K gating                                                                | 1               |
 | `routing.strategy`           | `fixed`, `top1`, `top2`, `uniform_random`                           | `fixed`       |
-| `runtime.mode`               | `serial`, `overlap`, `ocs_pipeline`, `ocs_dbo`, or `train_serial` | `serial`      |
+| `runtime.mode`               | `serial`, `overlap`, `ocs_pipeline`, `ocs_dbo`, `ocs_preset`, or `train_serial` | `serial`      |
 | `delay.comm_delay_us`        | Flat delay (ignored if topology or OCS enabled)                             | 0               |
 | `delay.comm_delay_jitter_us` | Random jitter ± on flat delay                                              | 0               |
 | `topology.enabled`           | Use hierarchical topology delays                                            | false           |
@@ -226,6 +342,9 @@ scripts/
 | `ocs.circuit_latency_us`     | Base optical path latency (once established)                                | 1.0             |
 | `ocs.circuit_bandwidth_gbps` | Circuit bandwidth (optical = much higher than EPS)                          | 200.0           |
 | `ocs.placement_strategy`     | Expert→rank placement:`round_robin` or `affinity`                      | `round_robin` |
+| `ocs.preset.source`          | Preset plan source: `trace` (from routing trace), `plan` (from JSON file) | `trace`       |
+| `ocs.preset.plan_path`       | Path to pre-computed circuit placement plan JSON (when source=plan)         | `""`          |
+| `ocs.preset.strategy`        | Plan computation strategy: `coactivation`                                  | `coactivation` |
 
 ## OCS Comparison (EPS vs OCS)
 
@@ -266,6 +385,9 @@ The comparison isolates **only the OCS transport effect** by using `overlap` (EP
 - **OCS delay model:** `compute_delay()` = reconfig (0 if hot, `reconfig_time_us` if cold/evicted) + `circuit_latency_us` + `bytes / (bw_gbps * 1000)`. This captures the bimodal nature of OCS: penalty on circuit setup, fast path once established.
 - **OCS pre-establish:** Circuits for micro-batch K are established BEFORE the scatter fires. In pipeline mode, this runs during the gap between gathers. In DBO mode (≥3 microbatches), it runs during the PRIOR batch's compute — reconfig is fully hidden.
 - **Comparison isolation:** `compare_ocs.py` uses `overlap` vs `ocs_pipeline` (not `serial` vs `ocs_pipeline`). Both use the same pipeline structure — the only difference is the transport layer. This isolates the OCS effect from the overlap benefit.
+- **Preset pre-configuration:** Circuits are established from a training-derived plan BEFORE the first micro-batch. The `pre_config()` method batch-loads circuits without incurring reconfig delay — simulating the scenario where the OCS fabric is pre-wired for inference.
+- **Affinity-driven placement:** `compute_circuit_plan()` maps expert co-activation counts to rank-pair circuit priorities. Higher affinity pairs get circuits first, maximizing hit rate under pool capacity constraints.
+- **Train→inference validation:** `affinity_consistency.py` provides JS divergence, top-K overlap, and Pearson correlation metrics to quantify whether training patterns predict inference routing — the core hypothesis behind OCS preset.
 
 ## Viewing Traces
 
