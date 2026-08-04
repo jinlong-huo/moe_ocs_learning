@@ -19,8 +19,9 @@ from src.runtime.process_group import init_process_group, cleanup_process_group,
 from src.runtime.scheduler import (
     run_serial, run_overlap, run_train_serial,
     run_ocs_pipeline, run_ocs_dbo, run_ocs_preset,
-    broadcast_model_params,
+    run_ocs_online, broadcast_model_params,
 )
+from src.ocs.online_controller import OnlineAffinityController
 from src.model.moe_layer import MoELayer
 from src.model.router_replay import ReplayRouter, LayerCyclingReplayRouter
 from src.model.qwen_experts import create_qwen_moe_layer, QwenMoELayerWrapper
@@ -311,6 +312,44 @@ def worker(
                 transport=transport,
                 timer=timer,
             )
+    elif mode == "ocs_online":
+        # Online affinity-driven OCS: track routing during inference,
+        # continuously adjust circuits to prioritize high-affinity rank pairs.
+        # No separate training phase needed — the system learns from its own
+        # inference-time routing patterns.
+        online_cfg = ocs_cfg.get("online", {})
+        update_interval = online_cfg.get("update_interval_steps", 1)
+        decay_factor = online_cfg.get("decay_factor", 1.0)
+
+        if affinity_tracker is None:
+            affinity_tracker = ExpertAffinityTracker(model_cfg["num_experts"])
+
+        controller = OnlineAffinityController(
+            affinity_tracker=affinity_tracker,
+            circuit_pool=ocs_pool,
+            experts_per_rank=experts_per_rank,
+            world_size=world_size,
+            max_circuits=ocs_cfg.get("max_circuits", 16),
+            update_interval_steps=update_interval,
+            decay_factor=decay_factor,
+            rank=rank,
+        )
+        log(rank, f"OCS online: adaptive affinity, "
+            f"update_interval={update_interval}, decay={decay_factor}")
+
+        for step in range(num_steps):
+            run_ocs_online(
+                step=step,
+                microbatches=microbatches,
+                moe=moe,
+                transport=transport,
+                timer=timer,
+                controller=controller,
+            )
+
+        # Log online controller summary
+        ctrl_summary = controller.summary()
+        log(rank, f"OCS online summary: {ctrl_summary}")
     else:
         raise ValueError(f"Unknown runtime mode: {mode}")
 

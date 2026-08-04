@@ -4,6 +4,7 @@ Provides:
   - OcsCircuitPool: finite pool of reconfigurable optical circuits with LRU eviction
   - OcsTopology: OCS-aware topology configuration
   - ExpertAffinityTracker: expert co-activation tracking for OCS-aware placement
+  - OnlineAffinityController: adaptive circuit management from inference-time affinity
   - preconfig: training trace → affinity → circuit placement plan pipeline
 
 All OCS functionality is opt-in — gated behind ocs.enabled: true in config.
@@ -13,6 +14,7 @@ When disabled, zero code paths are affected in the rest of the codebase.
 from src.ocs.circuit import OcsCircuit, OcsCircuitPool, OcsCircuitState, OcsPoolMetrics
 from src.ocs.topology import OcsTopology, OcsTopologyConfig
 from src.ocs.placement import ExpertAffinityTracker
+from src.ocs.online_controller import OnlineAffinityController
 
 __all__ = [
     "OcsCircuit",
@@ -22,4 +24,5 @@ __all__ = [
     "OcsTopology",
     "OcsTopologyConfig",
     "ExpertAffinityTracker",
+    "OnlineAffinityController",
 ]

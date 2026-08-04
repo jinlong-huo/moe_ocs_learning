@@ -1,0 +1,52 @@
+# OCS Online Affinity mode — adaptive circuit management during inference
+#
+# Instead of pre-configuring circuits from a separate training phase,
+# this mode tracks expert co-activation *during* inference and continuously
+# adjusts the OCS circuit pool to prioritize high-affinity rank pairs.
+#
+# How it works:
+#   1. During each step, routing decisions are recorded into a running
+#      affinity tracker (ExpertAffinityTracker)
+#   2. After each step (or every N steps), the accumulated affinity is
+#      used to recompute a circuit plan
+#   3. High-affinity circuits are pre-established; LRU handles eviction
+#      of unused low-affinity circuits
+#   4. Over time, the circuit pool converges to match the actual
+#      inference-time routing patterns — no training phase needed
+#
+# Comparison to other OCS modes:
+#   - ocs_pipeline: establishes circuits per-microbatch (reactive only)
+#   - ocs_dbo: same but with lookahead (hides reconfig behind compute)
+#   - ocs_preset: pre-configures from training data (static, two-phase)
+#   - ocs_online: learns from inference stream (adaptive, single-phase)
+
+extends: synthetic_moe
+
+ocs:
+  enabled: true
+  max_circuits: 16
+  reconfig_time_us: 100.0        # cold circuit establishment cost
+  circuit_latency_us: 1.0        # base optical path latency
+  circuit_bandwidth_gbps: 400.0  # per-circuit bandwidth once established
+  placement_strategy: affinity   # use co-activation affinity for placement
+
+  # Online-specific configuration
+  online:
+    update_interval_steps: 1     # recompute circuit plan every N steps
+    decay_factor: 0.99           # exponential decay (1.0 = no decay)
+                                 # 0.99 means each step, old counts × 0.99
+                                 # Lower = more responsive to pattern shifts
+
+runtime:
+  mode: ocs_online               # adaptive affinity-driven circuit management
+  num_steps: 5
+
+data:
+  batch_size: 16
+  seq_len: 64
+  num_microbatches: 4            # >= 3 to show pipeline overlap benefit
+
+delay:
+  enabled: false                 # OCS provides its own delay model
+  comm_delay_us: 0
+  comm_delay_jitter_us: 0
