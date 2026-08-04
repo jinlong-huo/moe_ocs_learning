@@ -28,6 +28,7 @@ from src.model.qwen_experts import create_qwen_moe_layer, QwenMoELayerWrapper
 from src.data.routing_schema import RoutingTrace
 from src.comm.transport import Transport
 from src.comm.topology import Topology, TopologyConfig
+from src.comm.path_resolver import PathResolver
 from src.ocs.topology import OcsTopology, OcsTopologyConfig
 from src.ocs.placement import ExpertAffinityTracker
 from src.train.trainer import Trainer
@@ -108,6 +109,30 @@ def worker(
             affinity_tracker = ExpertAffinityTracker(model_cfg["num_experts"])
             log(rank, "OCS affinity placement: tracking expert co-activation")
 
+    # -- Build PathResolver for mixed EPS+OCS transport (NEW) ------------------
+    path_resolver = None
+    mixed_cfg = ocs_cfg.get("mixed_transport", {})
+    mixed_enabled = (
+        isinstance(mixed_cfg, dict) and mixed_cfg.get("enabled", False)
+    ) or (isinstance(mixed_cfg, bool) and mixed_cfg)
+    if mixed_enabled and ocs_pool is not None:
+        # EPS path must exist: either topology or flat delay
+        has_eps = topology is not None or delay_cfg.get("comm_delay_us", 0) > 0
+        if has_eps:
+            path_resolver = PathResolver(
+                circuit_pool=ocs_pool,
+                topology=topology,
+                plan=None,  # populated later from preset plan or online controller
+                flat_delay_us=delay_cfg.get("comm_delay_us", 0.0),
+                flat_jitter_us=delay_cfg.get("comm_delay_jitter_us", 0.0),
+            )
+            log(rank, f"Mixed transport: OCS + "
+                f"{'topology' if topology is not None else 'flat'} EPS fallback, "
+                f"{path_resolver.plan_size} plan pairs")
+        else:
+            log(rank, "WARNING: mixed_transport enabled but no EPS path "
+                "(topology or flat delay) — falling back to OCS-only")
+
     transport = Transport(
         timer=timer,
         comm_delay_us=delay_cfg.get("comm_delay_us", 0.0),
@@ -116,6 +141,7 @@ def worker(
         rank=rank,
         world_size=world_size,
         ocs_circuit_pool=ocs_pool,
+        path_resolver=path_resolver,
     )
 
     experts_per_rank = model_cfg.get("experts_per_rank", 1)
@@ -290,6 +316,9 @@ def worker(
                 if hasattr(ocs_pool, "pre_config"):
                     n = ocs_pool.pre_config(plan)
                     log(rank, f"OCS preset: loaded {n} circuits from plan {plan_path}")
+                if path_resolver is not None:
+                    path_resolver.set_plan_from_list(plan)
+                    log(rank, f"Mixed transport: {len(plan)} plan pairs → PathResolver")
         elif preset_source == "trace" and affinity_tracker is not None:
             # Build plan from the affinity tracker (populated during training)
             for tokens in microbatches:
@@ -304,6 +333,9 @@ def worker(
             if hasattr(ocs_pool, "pre_config"):
                 n = ocs_pool.pre_config(plan)
                 log(rank, f"OCS preset: pre-established {n} circuits from affinity")
+            if path_resolver is not None:
+                path_resolver.set_plan_from_list(plan)
+                log(rank, f"Mixed transport: {len(plan)} plan pairs → PathResolver")
         for step in range(num_steps):
             run_ocs_preset(
                 step=step,
@@ -346,6 +378,9 @@ def worker(
                 timer=timer,
                 controller=controller,
             )
+            # Sync PathResolver plan from controller's dynamically adjusted plan
+            if path_resolver is not None and controller.current_plan is not None:
+                path_resolver.set_plan_from_list(controller.current_plan)
 
         # Log online controller summary
         ctrl_summary = controller.summary()
@@ -380,6 +415,15 @@ def worker(
             f"{m.circuit_establishes} establishes, "
             f"{m.circuit_evictions} evictions, "
             f"{m.total_reconfig_time_us:.0f}us reconfig total")
+
+    # -- Mixed transport metrics (if enabled) -------------------------------
+    if path_resolver is not None:
+        pm = path_resolver.get_metrics()
+        log(rank, f"Mixed transport: {pm['ocs_requests']}/{pm['total_requests']} "
+            f"OCS ({pm['ocs_fraction']*100:.1f}%), "
+            f"OCS avg {pm['ocs_avg_delay_us']:.1f}us, "
+            f"EPS avg {pm['eps_avg_delay_us']:.1f}us, "
+            f"plan={pm['plan_size']} pairs")
 
     # -- Export trace ----------------------------------------------------
     if config.get("profiling", {}).get("export_trace", True):
@@ -435,6 +479,13 @@ def worker(
                 "circuit_latency_us": ocs_cfg.get("circuit_latency_us", 1.0),
                 "circuit_bandwidth_gbps": ocs_cfg.get("circuit_bandwidth_gbps", 200.0),
                 "metrics": ocs_metrics,
+            }
+
+        # Add mixed transport info if available
+        if path_resolver is not None:
+            ep_meta["mixed_transport"] = {
+                "enabled": True,
+                "metrics": path_resolver.get_metrics(),
             }
 
         export_chrome_trace(timer.events, trace_path, pid=rank, tid=0, metadata=ep_meta)

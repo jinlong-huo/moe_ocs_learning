@@ -62,6 +62,15 @@ ocs:
   circuit_bandwidth_gbps: 200.0 # per-circuit bandwidth
   placement_strategy: round_robin  # round_robin | affinity
 
+  # Mixed EPS+OCS transport: per-rank-pair path resolution.
+  # When enabled, rank pairs in the circuit plan use OCS (optical fast path);
+  # all other pairs fall back to the electrical fabric (topology or flat delay).
+  # Requires an EPS path: either topology.enabled or delay.comm_delay_us > 0.
+  # When disabled (default), OCS-enabled mode routes ALL pairs through OCS —
+  # the existing behavior (backward compatible).
+  mixed_transport:
+    enabled: false
+
 profiling:
   export_trace: true
   trace_dir: "outputs/traces"

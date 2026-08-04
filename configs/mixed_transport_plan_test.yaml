@@ -1,0 +1,15 @@
+# Mixed transport with pre-loaded OCS plan
+extends: mixed_transport_test
+
+ocs:
+  enabled: true
+  max_circuits: 8
+  reconfig_time_us: 100.0
+  circuit_latency_us: 1.0
+  circuit_bandwidth_gbps: 400.0
+  placement_strategy: affinity
+  mixed_transport:
+    enabled: true
+  preset:
+    source: plan
+    plan_path: "outputs/test_mixed_plan.json"

@@ -6,6 +6,7 @@ All communication passes through this module so we can:
   - instrument every collective with timeline events
   - model hierarchical topology (NVLink / IB / cross-pod) delays
 """
+
 from __future__ import annotations
 
 import random
@@ -39,6 +40,7 @@ class Transport:
         rank: int = 0,
         world_size: Optional[int] = None,
         ocs_circuit_pool=None,  # OcsCircuitPool instance (optional, None disables OCS)
+        path_resolver=None,  # PathResolver for mixed EPS+OCS (optional)
     ):
         self.timer = timer
         self.comm_delay_us = comm_delay_us
@@ -47,6 +49,7 @@ class Transport:
         self.rank = rank
         self._world_size = world_size
         self.ocs_circuit_pool = ocs_circuit_pool
+        self.path_resolver = path_resolver
 
     def set_world_size(self, world_size: int) -> None:
         """Set the world size (call after init_process_group if not passed)."""
@@ -57,22 +60,37 @@ class Transport:
     def _inject_delay(self, tensor_bytes: int = 0, target_ranks: Optional[list] = None) -> None:
         """Inject synthetic communication delay.
 
-        Three delay modes (checked in order of priority):
-          1. OCS circuit-aware: uses OcsCircuitPool to model reconfigurable
-             optical circuits with LRU eviction. Requires target_ranks to know
-             which peers are in the collective.
-          2. Topology-aware: uses hierarchical network model (NVLink/IB/cross-pod).
-          3. Flat delay: simple fixed delay + jitter.
-
-        When OCS is active, the topology and flat delay paths are skipped —
-        OCS provides its own latency + bandwidth model via the circuit pool.
+        Four delay modes (checked in order of priority):
+          1. Mixed EPS+OCS: uses PathResolver for per-rank-pair path decisions.
+             Pairs in the OCS plan use optical circuits; others fallback to EPS
+             (topology or flat). Requires path_resolver + target_ranks.
+          2. OCS-only: uses OcsCircuitPool for all pairs. Requires ocs_circuit_pool
+             + target_ranks. (backward compatible)
+          3. Topology-aware: uses hierarchical network model (NVLink/IB/cross-pod).
+          4. Flat delay: simple fixed delay + jitter.
 
         Args:
             tensor_bytes: total bytes in the tensor (for bandwidth modeling)
-            target_ranks: list of destination rank IDs (required for OCS mode,
-                          ignored otherwise)
+            target_ranks: list of destination rank IDs (required for OCS and
+                          mixed modes, ignored otherwise)
         """
-        # --- OCS circuit-aware delay (NEW, gated) ---
+        # --- Mixed EPS+OCS transport (NEW, highest priority) ---
+        if self.path_resolver is not None and target_ranks is not None:
+            current_ns = time.perf_counter_ns()
+            max_delay_us = 0.0
+            for dst in target_ranks:
+                if dst == self.rank:
+                    continue
+                delay_us = self.path_resolver.compute_delay(
+                    self.rank, dst, tensor_bytes, current_ns,
+                )
+                if delay_us > max_delay_us:
+                    max_delay_us = delay_us
+            if max_delay_us > 0:
+                time.sleep(max_delay_us / 1_000_000.0)
+            return
+
+        # --- OCS circuit-aware delay (backward compatible) ---
         if self.ocs_circuit_pool is not None and target_ranks is not None:
             current_ns = time.perf_counter_ns()
             max_delay_us = 0.0
@@ -107,22 +125,32 @@ class Transport:
     # -- collective ops ----------------------------------------------------
 
     def all_to_all(
-        self, output_tensor: torch.Tensor, input_tensor: torch.Tensor, async_op: bool = False
+        self, output_tensor: torch.Tensor, input_tensor: torch.Tensor,
+        async_op: bool = False, active_ranks: Optional[list] = None,
     ):
         """All-to-all collective.  Optionally async for overlap mode.
 
         Uses all_to_all_single which splits a single tensor evenly across
         ranks along dim 0 -- the natural fit for MoE dispatch where
         each rank handles one or more experts.
+
+        Args:
+            active_ranks: optional list of ranks that have non-zero traffic.
+                When provided, delay is only injected for these ranks (not all).
+                When None (default), delay is injected for all ranks (backward compat).
+                This enables per-rank-pair metrics that reflect actual traffic patterns.
         """
         if self.timer:
             self.timer.start("comm/all_to_all", async_op=async_op)
 
         # Compute tensor bytes for bandwidth-aware delay
         tensor_bytes = input_tensor.numel() * input_tensor.element_size()
-        # For all-to-all, communicate with all ranks
-        all_ranks = list(range(dist.get_world_size())) if dist.is_initialized() else []
-        self._inject_delay(tensor_bytes=tensor_bytes, target_ranks=all_ranks)
+        # Use active_ranks if provided, otherwise all ranks (backward compatible)
+        if active_ranks is not None:
+            target_ranks = active_ranks
+        else:
+            target_ranks = list(range(dist.get_world_size())) if dist.is_initialized() else []
+        self._inject_delay(tensor_bytes=tensor_bytes, target_ranks=target_ranks)
 
         handle = dist.all_to_all_single(output_tensor, input_tensor, async_op=async_op)
         if self.timer and not async_op:

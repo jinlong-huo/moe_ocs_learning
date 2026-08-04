@@ -117,6 +117,85 @@ def compute_plan_from_trace(
     return plan
 
 
+def compute_plan_from_traces(
+    trace_paths: List[str],
+    max_circuits: int = 16,
+    experts_per_rank: int = 1,
+    world_size: int = 4,
+    strategy: str = "coactivation",
+) -> List[Tuple[int, int, float]]:
+    """Compute OCS circuit placement plan from MULTIPLE routing traces.
+
+    Merges all training traces into a single ExpertAffinityTracker, then
+    computes a circuit plan from the aggregated co-activation patterns.
+    This is the key function for the "network input problem" — the plan
+    is built from diverse training inputs and tested on held-out inputs.
+
+    Args:
+        trace_paths: list of paths to routing trace JSONs (training set).
+        max_circuits: maximum circuits to include in the plan.
+        experts_per_rank: experts per GPU rank.
+        world_size: number of GPU ranks.
+        strategy: plan computation strategy (currently "coactivation" only).
+
+    Returns:
+        List of (src_rank, dst_rank, score) sorted by score descending.
+
+    Raises:
+        ValueError: if trace_paths is empty or traces have inconsistent num_experts.
+    """
+    if not trace_paths:
+        raise ValueError("trace_paths must not be empty")
+
+    # Load first trace to determine num_experts
+    first_trace = RoutingTrace.load(trace_paths[0])
+    num_experts = first_trace.meta.num_experts
+
+    # Build one tracker and feed all traces through it
+    tracker = _build_affinity_from_trace(first_trace, num_experts)
+
+    for path in trace_paths[1:]:
+        trace = RoutingTrace.load(path)
+        if trace.meta.num_experts != num_experts:
+            raise ValueError(
+                f"Inconsistent num_experts: {trace_paths[0]} has "
+                f"{num_experts}, but {path} has {trace.meta.num_experts}"
+            )
+        # Manually feed routing events into the existing tracker
+        for route in trace.routes:
+            for layer_data in route.layers.values():
+                expert_ids_list = layer_data.experts
+                weights_list = layer_data.weights if layer_data.weights else []
+                if not expert_ids_list:
+                    continue
+                if isinstance(expert_ids_list[0], (int, float)):
+                    expert_ids = torch.tensor([expert_ids_list], dtype=torch.long)
+                    gate_weights = (
+                        torch.tensor([weights_list], dtype=torch.float32)
+                        if weights_list else torch.ones(1, dtype=torch.float32)
+                    )
+                else:
+                    expert_ids = torch.tensor(expert_ids_list, dtype=torch.long)
+                    gate_weights = (
+                        torch.tensor(weights_list, dtype=torch.float32)
+                        if weights_list
+                        else torch.ones(len(expert_ids_list), dtype=torch.float32)
+                    )
+                tracker.record_routing(expert_ids, gate_weights)
+
+    expert_to_rank = {
+        e: e // experts_per_rank for e in range(num_experts)
+    }
+
+    plan = tracker.compute_circuit_plan(
+        expert_to_rank=expert_to_rank,
+        max_circuits=max_circuits,
+        experts_per_rank=experts_per_rank,
+        world_size=world_size,
+    )
+    return plan
+
+
 def export_plan(plan: List[Tuple[int, int, float]], path: str) -> None:
     """Export a circuit placement plan to JSON.
 

@@ -133,9 +133,17 @@ def scatter_tokens(
         send_buf[start:start + count, hidden_dim] = local_expert[idxs].float()
         send_buf[start:start + count, hidden_dim + 1] = orig_indices[idxs].float()
 
+    # 5b. Determine which ranks have non-zero traffic (for per-pair metrics)
+    active_ranks = sorted(set(
+        r for r in range(world_size)
+        if send_counts[r].item() > 0 or recv_counts[r].item() > 0
+    ))
+
     # 6. All-to-all
     recv_buf = torch.zeros_like(send_buf)
-    handle = transport.all_to_all(recv_buf, send_buf, async_op=async_op)
+    handle = transport.all_to_all(
+        recv_buf, send_buf, async_op=async_op, active_ranks=active_ranks,
+    )
 
     result = _build_dispatch_result(
         recv_buf, recv_counts, max_send, hidden_dim, send_counts, original_tokens, top_k
@@ -259,9 +267,18 @@ def gather_tokens(
         start = dest_r * max_gather
         gather_send_buf[start:start + count] = packed[idxs]
 
+    # 5b. Determine active ranks for gather (non-zero traffic)
+    gather_active_ranks = sorted(set(
+        r for r in range(world_size)
+        if gather_send_counts[r].item() > 0 or gather_recv_counts[r].item() > 0
+    ))
+
     # 6. All-to-all back
     gather_recv_buf = torch.zeros_like(gather_send_buf)
-    handle = transport.all_to_all(gather_recv_buf, gather_send_buf, async_op=async_op)
+    handle = transport.all_to_all(
+        gather_recv_buf, gather_send_buf, async_op=async_op,
+        active_ranks=gather_active_ranks,
+    )
 
     if async_op:
         result = _unpack_gather(gather_recv_buf, gather_recv_counts, max_gather, hidden_dim, output_size)
