@@ -34,6 +34,10 @@ logs/
 # Generated comparison reports
 outputs/traces/ocs_comparison/
 
+# Generated outputs
+outputs/preset_plan.json
+outputs/diagrams/
+
 # Virtual environments
 venv/
 .venv/

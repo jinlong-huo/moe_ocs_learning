@@ -1,0 +1,44 @@
+[
+  {
+    "test": "test_domain_00",
+    "trace_path": "outputs/synthetic_traces_8rank/test_domain_00.json",
+    "ocs": {
+      "total_requests": 416,
+      "ocs_requests": 32,
+      "eps_requests": 384,
+      "ocs_coverage": 0.0769,
+      "ocs_hits": 32,
+      "ocs_misses": 48,
+      "operational_hit_rate": 1.0,
+      "pre_established_count": 48,
+      "pre_established_used": 0,
+      "preset_utilization": 0.0,
+      "preset_waste": 1.0,
+      "trace_dir": "outputs/eval_results_8rank/test_domain_00_ocs"
+    },
+    "eps": {
+      "trace_dir": "outputs/eval_results_8rank/test_domain_00_eps"
+    }
+  },
+  {
+    "test": "test_domain_03",
+    "trace_path": "outputs/synthetic_traces_8rank/test_domain_03.json",
+    "ocs": {
+      "total_requests": 416,
+      "ocs_requests": 0,
+      "eps_requests": 416,
+      "ocs_coverage": 0.0,
+      "ocs_hits": 0,
+      "ocs_misses": 48,
+      "operational_hit_rate": 0.0,
+      "pre_established_count": 48,
+      "pre_established_used": 0,
+      "preset_utilization": 0.0,
+      "preset_waste": 1.0,
+      "trace_dir": "outputs/eval_results_8rank/test_domain_03_ocs"
+    },
+    "eps": {
+      "trace_dir": "outputs/eval_results_8rank/test_domain_03_eps"
+    }
+  }
+]

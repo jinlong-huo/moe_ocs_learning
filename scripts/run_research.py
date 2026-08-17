@@ -4,7 +4,7 @@ run_research.py — MoE research CLI using HuggingFace Transformers.
 
 Usage:
     python run_research.py run \\
-        --model Qwen/Qwen1.5-MoE-A2.7B-Chat \\
+        --model Qwen/Qwen3.6-35B-A3B \\
         --prompt "Explain MoE routing." \\
         --max-tokens 64 --device mps
 
@@ -33,7 +33,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── run ────────────────────────────────────────────────────────
     p_run = sub.add_parser("run", help="Run MoE inference with routing capture")
-    p_run.add_argument("--model", default="Qwen/Qwen1.5-MoE-A2.7B-Chat")
+    p_run.add_argument("--model", default="Qwen/Qwen3.6-35B-A3B")
     p_run.add_argument("--prompt", default="Explain why Mixture of Experts models need routing, in one paragraph.")
     p_run.add_argument("--max-tokens", type=int, default=256)
     p_run.add_argument("--temp", type=float, default=0.6)
@@ -56,7 +56,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── intervene ──────────────────────────────────────────────────
     p_int = sub.add_parser("intervene", help="Run inference with routing intervention")
-    p_int.add_argument("--model", default="Qwen/Qwen1.5-MoE-A2.7B-Chat")
+    p_int.add_argument("--model", default="Qwen/Qwen3.6-35B-A3B")
     p_int.add_argument("--prompt", default="Explain MoE routing.")
     p_int.add_argument("--max-tokens", type=int, default=128)
     p_int.add_argument("--temp", type=float, default=0.6)
@@ -75,7 +75,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── ablate ─────────────────────────────────────────────────────
     p_abl = sub.add_parser("ablate", help="Run inference with expert ablation")
-    p_abl.add_argument("--model", default="Qwen/Qwen1.5-MoE-A2.7B-Chat")
+    p_abl.add_argument("--model", default="Qwen/Qwen3.6-35B-A3B")
     p_abl.add_argument("--prompt", default="Explain MoE routing.")
     p_abl.add_argument("--max-tokens", type=int, default=128)
     p_abl.add_argument("--temp", type=float, default=0.6)
@@ -224,6 +224,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     # ── Finalize & save ───────────────────────────────────────────
     trace = capture.finalize(tokenizer)
+    trace.validate()
     out_path = trace.save(args.output)
     print(f"\n[save] Routing trace → {out_path}")
     print(f"[stats] Generated {len(generated_ids)} tokens, "
@@ -552,6 +553,7 @@ def _run_intervened_generation(
 
     # ── Finalize & save ───────────────────────────────────────────
     trace = capture.finalize(tokenizer)
+    trace.validate()
     out_path = trace.save(args.output)
     print(f"\n[save] Intervened trace → {out_path}")
     print(f"[stats] Generated {len(generated_ids)} tokens, "

@@ -1,0 +1,1453 @@
+{
+  "traceEvents": [
+    {
+      "name": "step/0/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184532249,
+      "dur": 90,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184532342,
+      "dur": 17,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_2/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184532360,
+      "dur": 11,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_3/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184532373,
+      "dur": 10,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184532384,
+      "dur": 2711,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184535097,
+      "dur": 367,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184535466,
+      "dur": 1903,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184537371,
+      "dur": 508,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184537880,
+      "dur": 1792,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184539673,
+      "dur": 23,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184539697,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_2/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184539703,
+      "dur": 2065,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184541769,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184541772,
+      "dur": 291,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184542064,
+      "dur": 1812,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184543878,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_2/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184543889,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_3/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184543895,
+      "dur": 2176,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184546073,
+      "dur": 3,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_2/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184546077,
+      "dur": 348,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_2/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184546426,
+      "dur": 1467,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_2/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184547894,
+      "dur": 8,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_3/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184547903,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_2/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184547908,
+      "dur": 285,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_3/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184548194,
+      "dur": 242,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19184550126,
+      "dur": 407,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/0/mb_3/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184548438,
+      "dur": 2201,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_3/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184550640,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184550685,
+      "dur": 26,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184550712,
+      "dur": 11,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_2/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184550724,
+      "dur": 8,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_3/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184550733,
+      "dur": 8,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184550742,
+      "dur": 1639,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184552383,
+      "dur": 331,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184552716,
+      "dur": 1686,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184554403,
+      "dur": 388,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184554792,
+      "dur": 1672,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184556465,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184556474,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_2/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184556479,
+      "dur": 2104,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184558584,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184558586,
+      "dur": 347,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184558935,
+      "dur": 1627,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184560564,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_2/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184560572,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_3/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184560577,
+      "dur": 1860,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184562438,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_2/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184562442,
+      "dur": 344,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_2/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184562786,
+      "dur": 1670,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_2/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184564458,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_3/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184564466,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_2/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184564472,
+      "dur": 319,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_3/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184564793,
+      "dur": 238,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19184566502,
+      "dur": 447,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/1/mb_3/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184565033,
+      "dur": 2018,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_3/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184567052,
+      "dur": 8,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184567099,
+      "dur": 24,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184567124,
+      "dur": 11,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_2/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184567135,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_3/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184567145,
+      "dur": 10,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184567156,
+      "dur": 1687,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184568844,
+      "dur": 222,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184569068,
+      "dur": 1777,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184570846,
+      "dur": 269,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184571116,
+      "dur": 1649,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184572767,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184572775,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_2/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184572781,
+      "dur": 2089,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184574871,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184574874,
+      "dur": 282,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184575158,
+      "dur": 1669,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184576828,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_2/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184576837,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_3/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184576841,
+      "dur": 1717,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184578560,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_2/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184578562,
+      "dur": 288,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_2/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184578852,
+      "dur": 1863,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_2/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184580716,
+      "dur": 6,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_3/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184580723,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_2/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184580728,
+      "dur": 333,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_3/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184581063,
+      "dur": 263,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19184582670,
+      "dur": 426,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/2/mb_3/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184581327,
+      "dur": 1876,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_3/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184583204,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184583251,
+      "dur": 23,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184583275,
+      "dur": 14,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_2/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184583290,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_3/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184583301,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184583312,
+      "dur": 1396,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184584710,
+      "dur": 303,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184585014,
+      "dur": 1779,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184586794,
+      "dur": 296,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184587091,
+      "dur": 1657,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184588750,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184588758,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_2/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184588762,
+      "dur": 1951,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184590715,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184590717,
+      "dur": 328,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184591046,
+      "dur": 1672,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184592720,
+      "dur": 8,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_2/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184592729,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_3/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184592734,
+      "dur": 1846,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184594581,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_2/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184594583,
+      "dur": 306,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_2/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184594890,
+      "dur": 1504,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_2/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184596395,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_3/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184596405,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_2/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184596409,
+      "dur": 241,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_3/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184596652,
+      "dur": 257,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19184598554,
+      "dur": 449,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/3/mb_3/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184596912,
+      "dur": 2193,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_3/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184599106,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184599149,
+      "dur": 19,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184599169,
+      "dur": 10,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_2/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184599180,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_3/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184599190,
+      "dur": 8,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184599200,
+      "dur": 1699,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184600901,
+      "dur": 292,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184601194,
+      "dur": 1821,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184603016,
+      "dur": 311,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184603328,
+      "dur": 1534,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184604864,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184604872,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_2/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184604877,
+      "dur": 2043,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184606921,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184606924,
+      "dur": 318,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184607243,
+      "dur": 1663,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184608907,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_2/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184608915,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_3/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184608920,
+      "dur": 2007,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184610929,
+      "dur": 4,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_2/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184610934,
+      "dur": 304,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_2/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184611239,
+      "dur": 1631,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_2/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184612872,
+      "dur": 7,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_3/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184612879,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_2/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184612883,
+      "dur": 292,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_3/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184613176,
+      "dur": 261,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19184614824,
+      "dur": 514,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/4/mb_3/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184613438,
+      "dur": 2001,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_3/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19184615441,
+      "dur": 6,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/barrier",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19184615482,
+      "dur": 17940,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    }
+  ],
+  "displayTimeUnit": "ns",
+  "_metadata": {
+    "world_size": 4,
+    "num_experts": 8,
+    "experts_per_rank": 2,
+    "top_k": 1,
+    "routing_strategy": "fixed",
+    "mode": "ocs_preset",
+    "backend": "gloo",
+    "expert_type": "tiny",
+    "ocs": {
+      "enabled": true,
+      "max_circuits": 16,
+      "reconfig_time_us": 100.0,
+      "circuit_latency_us": 1.0,
+      "circuit_bandwidth_gbps": 400.0,
+      "metrics": {
+        "total_requests": 120,
+        "circuit_reuses": 117,
+        "circuit_establishes": 19,
+        "circuit_evictions": 3,
+        "total_reconfig_time_us": 300.0,
+        "total_transfer_time_us": 140.12159999999992,
+        "reuse_ratio": 0.975,
+        "active_circuits": 16,
+        "max_circuits": 16
+      }
+    }
+  }
+}

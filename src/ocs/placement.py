@@ -50,6 +50,7 @@ class ExpertAffinityTracker:
         expert_ids: torch.Tensor,
         gate_weights: torch.Tensor,
         phase: Optional[str] = None,
+        token_weights: Optional[torch.Tensor] = None,
     ) -> None:
         """Record one routing event.
 
@@ -57,12 +58,22 @@ class ExpertAffinityTracker:
             expert_ids: expert assignments. Shape [T] for top-1, [T, K] for top-K.
             gate_weights: routing weights, shape [T, K].
             phase: optional phase label ("training", "inference", "warmup").
+            token_weights: optional per-token weight multipliers, shape [T].
+                When provided, co-activation counts are multiplied by these
+                weights (e.g. guide-model centrality scores).
         """
         T = expert_ids.shape[0]
 
+        # Per-token weight: default to 1.0 if not provided
+        if token_weights is None:
+            w = torch.ones(T, dtype=torch.float64)
+        else:
+            w = token_weights.to(dtype=torch.float64)
+
         if expert_ids.dim() == 1:
             for e in expert_ids.unique():
-                count = (expert_ids == e).sum().item()
+                mask = (expert_ids == e)
+                count = (mask.float() * w).sum().item()
                 self.co_activation_counts[e, e] += count
                 self.expert_usage[e] += count
             self.total_samples += T
@@ -71,12 +82,13 @@ class ExpertAffinityTracker:
             self.total_samples += T
 
             for i in range(T):
+                wi = w[i].item()
                 for a in range(K):
                     ea = int(expert_ids[i, a].item())
-                    self.expert_usage[ea] += 1.0
+                    self.expert_usage[ea] += wi
                     for b in range(K):
                         eb = int(expert_ids[i, b].item())
-                        self.co_activation_counts[ea, eb] += 1.0
+                        self.co_activation_counts[ea, eb] += wi
 
     def get_affinity_scores(self) -> torch.Tensor:
         """Return normalized co-activation matrix [num_experts, num_experts].

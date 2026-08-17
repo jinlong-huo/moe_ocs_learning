@@ -7,7 +7,7 @@ RoutingTrace JSON (compatible with ``run_research.py analyze`` / ``compare``).
 
 Usage:
     python moe_run.py
-        Uses Qwen1.5-MoE-A2.7B-Chat-4bit (60 experts, top-4) by default.
+        Uses Qwen3.6-35B-A3B-4bit (MoE, top-4) by default.
 
     python moe_run.py --model ./models/Qwen3.6-35B-A3B-4bit
 
@@ -24,6 +24,11 @@ from mlx_lm.models.cache import make_prompt_cache
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Guide model — dense generalised model for affinity graph prior
+# ═══════════════════════════════════════════════════════════════════
+_GUIDE_HIDDEN = None
+
+# ═══════════════════════════════════════════════════════════════════ 
 # Monkey-patch: instrument MoE block forward pass
 # ═══════════════════════════════════════════════════════════════════
 
@@ -101,6 +106,52 @@ def install_routing_hooks(model, capture):
     return patched
 
 
+def _patch_guide_for_hidden_states(model):
+    """Patch the guide model so its next forward captures last-layer hidden states."""
+    global _GUIDE_HIDDEN
+    if hasattr(model, "lm_head"):
+        _orig = model.lm_head
+        def _capture(x):
+            global _GUIDE_HIDDEN
+            _GUIDE_HIDDEN = x
+            return _orig(x)
+        model.lm_head = _capture
+        return True
+    layers = _get_layers(model)
+    if layers is not None and len(layers) > 0:
+        last = layers[-1]
+        for attr in ("norm", "final_layer_norm", "ln_f", "output_norm"):
+            norm = getattr(last, attr, None) or getattr(model, attr, None)
+            if norm is not None:
+                _orig_norm = norm
+                def _capture_norm(x):
+                    global _GUIDE_HIDDEN
+                    out = _orig_norm(x)
+                    _GUIDE_HIDDEN = out
+                    return out
+                if hasattr(last, attr):
+                    setattr(last, attr, _capture_norm)
+                else:
+                    setattr(model, attr, _capture_norm)
+                return True
+    return False
+
+
+def _compute_guide_affinity():
+    """Compute token cosine-similarity matrix from captured guide hidden states."""
+    global _GUIDE_HIDDEN
+    if _GUIDE_HIDDEN is None:
+        return None
+    h = _GUIDE_HIDDEN
+    if h.ndim == 3:
+        h = h[0]
+    norms = mx.linalg.norm(h, axis=-1, keepdims=True)
+    norms = mx.where(norms == 0, mx.ones_like(norms), norms)
+    h_norm = h / norms
+    affinity = h_norm @ h_norm.T
+    return affinity.tolist()
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Model metadata extraction
 # ═══════════════════════════════════════════════════════════════════
@@ -137,7 +188,7 @@ def _extract_model_meta(model, model_path: str) -> dict:
         path_lower = model_path.lower()
         if "qwen3" in path_lower or "qwen3.5" in path_lower:
             model_type = "qwen3_moe"
-        elif "qwen2" in path_lower or "qwen1.5" in path_lower:
+        elif "qwen2" in path_lower:
             model_type = "qwen2_moe"
 
     model_id = Path(model_path).name
@@ -162,8 +213,13 @@ def main():
     )
     parser.add_argument(
         "--model", type=str,
-        default="./models/Qwen1.5-MoE-A2.7B-Chat-4bit",
+        default="./models/Qwen3.6-35B-A3B-4bit",
         help="Path to mlx-format model directory",
+    )
+    parser.add_argument(
+        "--guide-model", type=str,
+        default="./models/Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-4bit",
+        help="Path to dense generalised model for affinity graph prior",
     )
     parser.add_argument(
         "--prompt", type=str,
@@ -201,7 +257,7 @@ def main():
     state = {"seq_pos": 0, "phase": "prefill"}
 
     # ── Install routing hooks ──
-    from hook import RoutingCapture
+    from src.data.mlx_capture import RoutingCapture
 
     capture = RoutingCapture(state)
     install_routing_hooks(model, capture)
@@ -266,6 +322,39 @@ def main():
     print(f"\n[summary] Generated {len(generated_tokens)} tokens")
     print(f"[summary] Routing events logged: {capture.route_count}")
 
+    # ── Compute guide affinity from dense generalised model ──
+    guide_affinity = None
+    if args.guide_model:
+        guide_path = Path(args.guide_model)
+        if guide_path.exists():
+            print(f"[guide] Loading generalised model: {guide_path.name}")
+            guide_model, guide_tokenizer = load(str(guide_path))
+            patched_ok = _patch_guide_for_hidden_states(guide_model)
+            if patched_ok:
+                if use_chat and hasattr(guide_tokenizer, "apply_chat_template") \
+                        and guide_tokenizer.chat_template is not None:
+                    guide_prompt = guide_tokenizer.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=False,
+                    )
+                    guide_ids = guide_tokenizer.encode(guide_prompt)
+                else:
+                    guide_ids = guide_tokenizer.encode(args.prompt)
+                try:
+                    _ = guide_model(mx.array([guide_ids]))
+                    guide_affinity = _compute_guide_affinity()
+                    if guide_affinity is not None:
+                        aff_rows = len(guide_affinity)
+                        aff_cols = len(guide_affinity[0]) if guide_affinity else 0
+                        print(f"[guide] Affinity matrix: {aff_rows} x {aff_cols}")
+                    else:
+                        print("[guide] Warning: could not extract hidden states")
+                except Exception as e:
+                    print(f"[guide] Warning: affinity computation failed: {e}")
+            else:
+                print("[guide] Warning: could not patch guide model for hidden states")
+        else:
+            print(f"[guide] Guide model not found: {guide_path} -- skipping")
+
     # ── Build canonical RoutingTrace and save ──
     trace = capture.build_trace(
         prompt_tokens=prompt_tokens,
@@ -279,8 +368,11 @@ def main():
         backend="mlx",
     )
 
+    trace.guide_affinity = guide_affinity
+
     log_path = Path(args.log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
+    trace.validate()
     trace.save(str(log_path / "routing.json"))
     print(f"[save] Routing trace: {log_path / 'routing.json'}")
 

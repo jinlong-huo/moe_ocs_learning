@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Affinity-Driven OCS Preset — Pseudocode</title>
+<style>
+  * { margin:0; box-sizing:border-box; }
+  body {
+    background:#fff; color:#1a1a2e;
+    font:15px/1.5 "Times New Roman", Georgia, serif;
+    display:flex; justify-content:center; padding:36px 28px;
+  }
+  .wrap { max-width:960px; width:100%; }
+  h1 {
+    font-size:22px; font-weight:700; text-align:center;
+    margin-bottom:4px; color:#111;
+  }
+  .subtitle {
+    text-align:center; font-size:13px; color:#555;
+    margin-bottom:28px; font-style:italic;
+  }
+
+  .algo {
+    border:1.5px solid #c8cdd4; border-radius:6px; overflow:hidden;
+    margin-bottom:24px;
+  }
+  .algo-header {
+    font-size:12px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.05em; padding:8px 16px;
+    background:#f0f2f5; border-bottom:1px solid #c8cdd4; color:#444;
+  }
+  .algo-body {
+    padding:16px 20px; font-family:"Courier New", Courier, monospace;
+    font-size:12.5px; line-height:1.8; white-space:pre;
+    color:#1a1a2e;
+  }
+  .algo-body .kw  { color:#6a1b9a; font-weight:700; }
+  .algo-body .fn  { color:#1565c0; font-weight:700; }
+  .algo-body .var { color:#2e7d32; }
+  .algo-body .cmt { color:#888; font-style:italic; }
+  .algo-body .num { color:#e65100; }
+
+  .metrics-panel {
+    border:1.5px solid #c8cdd4; border-radius:6px; overflow:hidden;
+    margin-bottom:24px;
+  }
+  .metrics-panel table {
+    width:100%; border-collapse:collapse; font-size:12.5px;
+  }
+  .metrics-panel th, .metrics-panel td {
+    padding:8px 14px; text-align:left;
+    border-bottom:1px solid #e8eaed;
+  }
+  .metrics-panel th {
+    font-size:11px; font-weight:700; color:#666;
+    background:#fafbfc; white-space:nowrap;
+  }
+  .metrics-panel td:first-child { font-family:"Courier New",monospace; font-size:11.5px; font-weight:600; }
+  .metrics-panel td:nth-child(2) { color:#444; }
+
+  .bet {
+    text-align:center; font-size:13px; color:#555;
+    border:1.5px solid #c8cdd4; border-radius:6px;
+    padding:14px 20px; background:#fafbfc;
+    font-style:italic;
+  }
+  .bet b { color:#1a1a2e; font-style:normal; }
+
+  .caption {
+    text-align:center; font-size:11px; color:#999;
+    margin-top:18px; font-style:italic;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Training-Time Affinity → Inference-Time OCS Pre-Configuration</h1>
+  <p class="subtitle">Pseudocode for capturing expert co-activation patterns and pre-wiring OCS circuits</p>
+
+  <!-- Phase 1: Capture -->
+  <div class="algo">
+    <div class="algo-header">Phase 1 — Capture: Build Co-Activation Graph</div>
+    <div class="algo-body"><span class="cmt">// Initialize tracker</span>
+<span class="var">tracker</span> ← <span class="fn">ExpertAffinityTracker</span>(num_experts)
+
+<span class="cmt">// Feed router outputs from any source (HF / MLX / synthetic)</span>
+<span class="kw">for each</span> token <span class="var">t</span> <span class="kw">in</span> training_corpus:
+    <span class="var">expert_ids</span> ← <span class="fn">router</span>(t)           <span class="cmt">// top-K expert assignments</span>
+    <span class="var">tracker</span>.<span class="fn">record_routing</span>(<span class="var">expert_ids</span>)
+
+<span class="cmt">// tracker.co_activation_counts[eᵢ][eⱼ] — how often eᵢ and eⱼ fire together</span>
+<span class="cmt">// Normalized: P(eⱼ co-selected | eᵢ selected) ∈ [0, 1]</span>
+<span class="var">affinity</span>[<span class="var">eᵢ</span>][<span class="var">eⱼ</span>] ← <span class="var">co_activation</span>[<span class="var">eᵢ</span>][<span class="var">eⱼ</span>] / <span class="var">usage</span>[<span class="var">eᵢ</span>]</div>
+  </div>
+
+  <!-- Phase 2: Plan -->
+  <div class="algo">
+    <div class="algo-header">Phase 2 — Plan: Expert Pairs → Rank Pairs → Ranked Circuit List</div>
+    <div class="algo-body"><span class="kw">function</span> <span class="fn">compute_circuit_plan</span>(<span class="var">affinity</span>, experts_per_rank, max_circuits):
+    <span class="var">scores</span> ← {}                         <span class="cmt">// (src_rank, dst_rank) → score</span>
+
+    <span class="kw">for each</span> expert pair (<span class="var">eₐ</span>, <span class="var">e_b</span>):
+        <span class="var">rankₐ</span> ← <span class="var">eₐ</span> // experts_per_rank
+        <span class="var">rank_b</span> ← <span class="var">e_b</span> // experts_per_rank
+        <span class="kw">if</span> <span class="var">rankₐ</span> ≠ <span class="var">rank_b</span>:
+            <span class="var">scores</span>[(<span class="var">rankₐ</span>, <span class="var">rank_b</span>)] ← max(<span class="var">scores</span>[(<span class="var">rankₐ</span>, <span class="var">rank_b</span>)], <span class="var">affinity</span>[<span class="var">eₐ</span>][<span class="var">e_b</span>])
+
+    <span class="var">ranked</span> ← sort <span class="var">scores</span> by value descending
+    <span class="kw">return</span> <span class="var">ranked</span>[<span class="num">0</span> : max_circuits]       <span class="cmt">// priority-ordered circuit plan</span>
+
+<span class="cmt">// Serialized as preset_plan.json via preconfig.py</span>
+<span class="fn">export_plan</span>(<span class="fn">compute_circuit_plan</span>(...))</div>
+  </div>
+
+  <!-- Phase 3: Pre-configure & Infer -->
+  <div class="algo">
+    <div class="algo-header">Phase 3 — Inference: Pre-Establish, Zero Reconfig</div>
+    <div class="algo-body"><span class="cmt">// At inference startup (ocs_preset scheduler mode)</span>
+<span class="var">plan</span> ← <span class="fn">load_plan</span>(<span class="str">"preset_plan.json"</span>)
+<span class="var">ocs_pool</span>.<span class="fn">pre_config</span>(<span class="var">plan</span>)                 <span class="cmt">// batch-establish top-N circuits</span>
+
+<span class="cmt">// Inference loop — NO runtime circuit switching</span>
+<span class="kw">for each</span> micro-batch <span class="var">b</span>:
+    <span class="fn">route</span>(<span class="var">b</span>)  →  <span class="fn">scatter</span>(<span class="var">b</span>)  →  <span class="fn">compute</span>(<span class="var">b</span>)  →  <span class="fn">gather</span>(<span class="var">b</span>)  →  <span class="fn">combine</span>(<span class="var">b</span>)
+                              <span class="cmt">↑ all communication over pre-established OCS paths</span>
+
+<span class="cmt">// No pre_establish_circuits() calls — reconfig latency eliminated entirely</span></div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics-panel">
+    <div class="algo-header">Key Evaluation Metrics</div>
+    <table>
+      <thead><tr><th>Metric</th><th>What it measures</th></tr></thead>
+      <tbody>
+        <tr><td>Affinity Correlation (Pearson R)</td><td>Are training and inference co-activation matrices correlated?</td></tr>
+        <tr><td>Estimated Hit Rate</td><td>% of rank-pair affinity mass covered by top-N circuits (&gt;0.7 = preset viable)</td></tr>
+        <tr><td>JS Divergence</td><td>Per-layer expert distribution drift from train → inference</td></tr>
+        <tr><td>Reuse Ratio</td><td>At runtime: circuit hits / total requests (higher = better preset)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bet">
+    <b>Core bet:</b> training-time expert co-activation patterns are stable enough to predict inference-time<br>
+    communication needs, letting you pre-wire the OCS fabric and hide circuit switching overhead entirely.
+  </div>
+
+  <p class="caption">Figure: Pseudocode for the affinity-driven OCS preset pipeline across three phases — capture, plan, pre-configure.</p>
+</div>
+</body>
+</html>

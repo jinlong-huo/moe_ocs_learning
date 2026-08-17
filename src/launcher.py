@@ -1,8 +1,5 @@
 """Multi-process launcher: spawn N workers with torch.multiprocessing.
 
-On macOS, this MUST use start_method='spawn'. Fork is unsafe
-because of the Mac system libraries' interaction with Python's fork.
-
 Usage:
   python -m src.launcher --config configs/synthetic_moe.yaml
 """
@@ -57,13 +54,13 @@ def launch(config: dict, trace_dir: str = "outputs/traces") -> None:
 
     world_size = config.get("world_size", 2)
 
-    # Set start method (required on macOS)
+    # Set start method
     try:
         mp.set_start_method("spawn", force=True)
     except RuntimeError:
-        pass  # already set
-
-    processes = []
+        pass 
+    
+    processes = []  # check if this one is authentic, i.e, the mp can simulate the package tranverse then.
     for rank in range(world_size):
         p = mp.Process(
             target=worker,

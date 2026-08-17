@@ -44,8 +44,14 @@ def expert_distribution(
     counts = np.zeros(num_experts, dtype=np.float64)
     for ids in expert_ids_list:
         for e in ids:
-            if 0 <= e < num_experts:
-                counts[e] += 1.0
+            if not (0 <= e < num_experts):
+                raise ValueError(
+                    f"Expert id {e} is outside [0, {num_experts}). The routing "
+                    "trace's expert count does not match the configured "
+                    "num_experts (world_size x experts_per_rank) — refusing to "
+                    "silently drop routing data."
+                )
+            counts[e] += 1.0
     total = counts.sum()
     if total == 0:
         return counts

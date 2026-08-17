@@ -36,6 +36,11 @@ def _build_affinity_from_trace(
     Iterates over all routes (tokens) and all MoE layers in the trace
     to accumulate global co-activation counts.
 
+    If ``trace.guide_affinity`` is available, it is used to weight
+    co-activations by the dense guide model's semantic centrality —
+    tokens that the generalised model considers more central to the
+    context contribute more to the affinity graph.
+
     Args:
         trace: routing trace (can be from training or inference).
         num_experts: total number of experts (for affinity matrix sizing).
@@ -43,6 +48,33 @@ def _build_affinity_from_trace(
     Returns:
         ExpertAffinityTracker with accumulated co-activation counts.
     """
+    # ── Compute per-token centrality from guide affinity ──
+    token_centrality: dict[int, float] = {}
+    guide_affinity = getattr(trace, "guide_affinity", None)
+    if guide_affinity is not None and len(guide_affinity) > 0:
+        n_tokens = len(guide_affinity)
+        for t in range(n_tokens):
+            row = guide_affinity[t]
+            if row and len(row) == n_tokens:
+                # Mean cosine similarity of token t to all others
+                token_centrality[t] = sum(row) / n_tokens
+        if token_centrality:
+            vals = list(token_centrality.values())
+            print(f"[affinity] Guide model weights: {len(token_centrality)} tokens, "
+                  f"centrality range [{min(vals):.4f}, {max(vals):.4f}]")
+
+    if num_experts <= 0:
+        raise ValueError("num_experts must be positive for affinity computation")
+
+    if trace.meta.num_experts not in (0, num_experts):
+        raise ValueError(
+            f"Trace '{trace.meta.model_id}' reports num_experts="
+            f"{trace.meta.num_experts}, but the pipeline is configured for "
+            f"num_experts={num_experts} (world_size x experts_per_rank). "
+            "Use a matching trace or fix the experiment config — expert ids "
+            "outside the configured range would otherwise be dropped."
+        )
+
     tracker = ExpertAffinityTracker(num_experts)
 
     for route in trace.routes:
@@ -57,6 +89,14 @@ def _build_affinity_from_trace(
             token_count = len(expert_ids_list)
             if token_count == 0:
                 continue
+
+            # ── Token centrality weight from guide affinity ──
+            tw = None
+            if token_centrality:
+                pos = route.token_pos
+                c = token_centrality.get(pos)
+                if c is not None:
+                    tw = torch.tensor([c], dtype=torch.float64)
 
             # expert_ids_list is [K] or list of [K] per-token, depending on format
             # Handle both [K] (single token) and [[K], ...] (multi-token)
@@ -73,9 +113,40 @@ def _build_affinity_from_trace(
                 else:
                     gate_weights = torch.ones(token_count, dtype=torch.float32)
 
-            tracker.record_routing(expert_ids, gate_weights)
+            if expert_ids.numel() > 0 and (
+                expert_ids.min().item() < 0 or expert_ids.max().item() >= num_experts
+            ):
+                raise ValueError(
+                    f"Trace '{trace.meta.model_id}' layer {layer_id} contains "
+                    f"expert ids outside [0, {num_experts}). Trace meta says "
+                    f"num_experts={trace.meta.num_experts}; the pipeline is "
+                    f"configured for {num_experts}."
+                )
+
+            tracker.record_routing(expert_ids, gate_weights, token_weights=tw)
 
     return tracker
+
+
+def _check_rank_layout(num_experts: int, world_size: int, experts_per_rank: int) -> None:
+    """Fail loudly when the expert→rank mapping is inconsistent.
+
+    The expert_id → rank mapping is ``e // experts_per_rank``; a mismatch
+    between the trace's expert count and the experiment's world_size x
+    experts_per_rank silently corrupts every rank assignment downstream.
+    """
+    if experts_per_rank <= 0:
+        raise ValueError(f"experts_per_rank must be positive, got {experts_per_rank}")
+    if world_size <= 0:
+        raise ValueError(f"world_size must be positive, got {world_size}")
+    if world_size * experts_per_rank != num_experts:
+        raise ValueError(
+            f"Rank layout mismatch: world_size ({world_size}) x "
+            f"experts_per_rank ({experts_per_rank}) = "
+            f"{world_size * experts_per_rank}, but the trace has "
+            f"num_experts={num_experts}. Update the experiment config so the "
+            "product equals the trace's expert count."
+        )
 
 
 def compute_plan_from_trace(
@@ -98,9 +169,13 @@ def compute_plan_from_trace(
 
     Returns:
         List of (src_rank, dst_rank, score) sorted by score descending.
+
+    Raises:
+        ValueError: if the rank layout does not match the trace's num_experts.
     """
     trace = RoutingTrace.load(trace_path)
     num_experts = trace.meta.num_experts
+    _check_rank_layout(num_experts, world_size, experts_per_rank)
 
     tracker = _build_affinity_from_trace(trace, num_experts)
 
@@ -142,7 +217,8 @@ def compute_plan_from_traces(
         List of (src_rank, dst_rank, score) sorted by score descending.
 
     Raises:
-        ValueError: if trace_paths is empty or traces have inconsistent num_experts.
+        ValueError: if trace_paths is empty, traces have inconsistent num_experts,
+            or the rank layout does not match the traces' num_experts.
     """
     if not trace_paths:
         raise ValueError("trace_paths must not be empty")
@@ -150,6 +226,7 @@ def compute_plan_from_traces(
     # Load first trace to determine num_experts
     first_trace = RoutingTrace.load(trace_paths[0])
     num_experts = first_trace.meta.num_experts
+    _check_rank_layout(num_experts, world_size, experts_per_rank)
 
     # Build one tracker and feed all traces through it
     tracker = _build_affinity_from_trace(first_trace, num_experts)
@@ -161,8 +238,23 @@ def compute_plan_from_traces(
                 f"Inconsistent num_experts: {trace_paths[0]} has "
                 f"{num_experts}, but {path} has {trace.meta.num_experts}"
             )
+        # Compute token centrality from guide affinity for this trace
+        token_cem: dict[int, float] = {}
+        guide_aff = getattr(trace, "guide_affinity", None)
+        if guide_aff is not None and len(guide_aff) > 0:
+            n_tok = len(guide_aff)
+            for t in range(n_tok):
+                row = guide_aff[t]
+                if row and len(row) == n_tok:
+                    token_cem[t] = sum(row) / n_tok
+
         # Manually feed routing events into the existing tracker
         for route in trace.routes:
+            tw = None
+            if token_cem:
+                c = token_cem.get(route.token_pos)
+                if c is not None:
+                    tw = torch.tensor([c], dtype=torch.float64)
             for layer_data in route.layers.values():
                 expert_ids_list = layer_data.experts
                 weights_list = layer_data.weights if layer_data.weights else []
@@ -181,7 +273,7 @@ def compute_plan_from_traces(
                         if weights_list
                         else torch.ones(len(expert_ids_list), dtype=torch.float32)
                     )
-                tracker.record_routing(expert_ids, gate_weights)
+                tracker.record_routing(expert_ids, gate_weights, token_weights=tw)
 
     expert_to_rank = {
         e: e // experts_per_rank for e in range(num_experts)

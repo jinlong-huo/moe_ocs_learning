@@ -1,0 +1,853 @@
+{
+  "traceEvents": [
+    {
+      "name": "step/0/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181675923,
+      "dur": 134,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181676060,
+      "dur": 19,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181676081,
+      "dur": 79,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181676161,
+      "dur": 3209,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181679372,
+      "dur": 27,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181679401,
+      "dur": 434,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181679836,
+      "dur": 2163,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181682001,
+      "dur": 773,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181682775,
+      "dur": 2229,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181685006,
+      "dur": 24,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181685032,
+      "dur": 5,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181685041,
+      "dur": 153,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181685195,
+      "dur": 541,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19181687810,
+      "dur": 475,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/0/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181685740,
+      "dur": 2732,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/0/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181688473,
+      "dur": 13,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181688525,
+      "dur": 27,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181688553,
+      "dur": 12,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181688567,
+      "dur": 27,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181688595,
+      "dur": 2139,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181690736,
+      "dur": 22,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181690759,
+      "dur": 449,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181691209,
+      "dur": 1843,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181693054,
+      "dur": 707,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181693763,
+      "dur": 1841,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181695605,
+      "dur": 10,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181695616,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181695621,
+      "dur": 462,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181696085,
+      "dur": 338,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19181698312,
+      "dur": 442,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/1/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181696425,
+      "dur": 2479,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/1/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181698905,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181698951,
+      "dur": 29,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181698982,
+      "dur": 11,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181698995,
+      "dur": 28,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181699024,
+      "dur": 1888,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181700914,
+      "dur": 24,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181700939,
+      "dur": 370,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181701311,
+      "dur": 1890,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181703202,
+      "dur": 651,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181703854,
+      "dur": 1855,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181705710,
+      "dur": 10,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181705721,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181705726,
+      "dur": 369,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181706097,
+      "dur": 593,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19181708499,
+      "dur": 502,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/2/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181706691,
+      "dur": 2443,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/2/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181709135,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181709180,
+      "dur": 24,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181709204,
+      "dur": 11,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181709217,
+      "dur": 24,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181709242,
+      "dur": 1928,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181711172,
+      "dur": 23,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181711197,
+      "dur": 317,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181711515,
+      "dur": 1673,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181713189,
+      "dur": 670,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181713860,
+      "dur": 2104,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181715965,
+      "dur": 11,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181715978,
+      "dur": 1,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181715982,
+      "dur": 320,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181716303,
+      "dur": 555,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19181718687,
+      "dur": 584,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/3/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181716859,
+      "dur": 2551,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/3/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181719411,
+      "dur": 8,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181719456,
+      "dur": 24,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/route",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181719482,
+      "dur": 18,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181719502,
+      "dur": 24,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181719527,
+      "dur": 1942,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/ocs_pre_establish",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181721470,
+      "dur": 21,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181721491,
+      "dur": 265,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/scatter",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181721758,
+      "dur": 2010,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181723769,
+      "dur": 618,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181724389,
+      "dur": 2142,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181726533,
+      "dur": 10,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/scatter_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181726544,
+      "dur": 2,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_0/gather_wait",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181726549,
+      "dur": 380,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/compute",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181726931,
+      "dur": 604,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/all_to_all",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19181729257,
+      "dur": 647,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "async_op": false
+      }
+    },
+    {
+      "name": "step/4/mb_1/gather",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181727537,
+      "dur": 2512,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "step/4/mb_1/combine",
+      "cat": "step",
+      "ph": "X",
+      "ts": 19181730050,
+      "dur": 9,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    },
+    {
+      "name": "comm/barrier",
+      "cat": "comm",
+      "ph": "X",
+      "ts": 19181730096,
+      "dur": 16799,
+      "pid": 1,
+      "tid": 0,
+      "args": {}
+    }
+  ],
+  "displayTimeUnit": "ns",
+  "_metadata": {
+    "world_size": 4,
+    "num_experts": 8,
+    "experts_per_rank": 2,
+    "top_k": 1,
+    "routing_strategy": "fixed",
+    "mode": "ocs_pipeline",
+    "backend": "gloo",
+    "expert_type": "tiny",
+    "ocs": {
+      "enabled": true,
+      "max_circuits": 8,
+      "reconfig_time_us": 50.0,
+      "circuit_latency_us": 1.0,
+      "circuit_bandwidth_gbps": 200.0,
+      "metrics": {
+        "total_requests": 90,
+        "circuit_reuses": 87,
+        "circuit_establishes": 3,
+        "circuit_evictions": 0,
+        "total_reconfig_time_us": 150.0,
+        "total_transfer_time_us": 100.2431999999999,
+        "reuse_ratio": 0.9666666666666667,
+        "active_circuits": 3,
+        "max_circuits": 8
+      }
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "config": {
+    "train_traces": [
+      "logs/train/routing.json"
+    ],
+    "test_traces": [
+      "logs/test/routing.json"
+    ],
+    "experts_per_rank": 6,
+    "max_circuits": 16,
+    "world_size": 42
+  },
+  "plan": {
+    "num_circuits": 16,
+    "top_pairs": [
+      {
+        "src": 21,
+        "dst": 40,
+        "score": 0.4259
+      },
+      {
+        "src": 6,
+        "dst": 37,
+        "score": 0.3739
+      },
+      {
+        "src": 17,
+        "dst": 40,
+        "score": 0.3663
+      },
+      {
+        "src": 6,
+        "dst": 25,
+        "score": 0.3343
+      },
+      {
+        "src": 8,
+        "dst": 9,
+        "score": 0.3284
+      }
+    ],
+    "score_stats": {
+      "min": 0.2697,
+      "max": 0.4259,
+      "mean": 0.3171,
+      "median": 0.3061
+    },
+    "rank_counts": {
+      "21": 1,
+      "6": 2,
+      "17": 1,
+      "8": 2,
+      "12": 1,
+      "28": 1,
+      "14": 2,
+      "20": 1,
+      "37": 1,
+      "40": 2,
+      "1": 1,
+      "38": 1
+    }
+  },
+  "aggregate": {
+    "total_tokens": 282,
+    "total_layers": 40,
+    "total_expert_instances": 90240,
+    "total_expert_pairs": 631680,
+    "total_inter_rank_pairs": 618248,
+    "inter_rank_pairs_covered": 5079,
+    "expert_pairs_covered": 5079,
+    "expert_pair_hit_rate": 0.008,
+    "rank_pair_hit_rate": 0.0082,
+    "rank_pair_coverage": 0.0082,
+    "token_hit_rate": 0.0,
+    "tokens_fully_covered": 0,
+    "plan_size": 16,
+    "plan_pairs_used": 16,
+    "plan_utilization": 1.0
+  },
+  "per_trace": [
+    {
+      "total_tokens": 282,
+      "total_layers": 40,
+      "total_expert_instances": 90240,
+      "total_expert_pairs": 631680,
+      "total_inter_rank_pairs": 618248,
+      "inter_rank_pairs_covered": 5079,
+      "expert_pairs_covered": 5079,
+      "expert_pair_hit_rate": 0.008,
+      "rank_pair_hit_rate": 0.0082,
+      "rank_pair_coverage": 0.0082,
+      "token_hit_rate": 0.0,
+      "tokens_fully_covered": 0,
+      "plan_size": 16,
+      "plan_pairs_used": 16,
+      "plan_utilization": 1.0
+    }
+  ],
+  "random_baseline": {
+    "total_tokens": 282,
+    "total_layers": 40,
+    "total_expert_instances": 90240,
+    "total_expert_pairs": 631680,
+    "total_inter_rank_pairs": 618248,
+    "inter_rank_pairs_covered": 5503,
+    "expert_pairs_covered": 5503,
+    "expert_pair_hit_rate": 0.0087,
+    "rank_pair_hit_rate": 0.0089,
+    "rank_pair_coverage": 0.0089,
+    "token_hit_rate": 0.0,
+    "tokens_fully_covered": 0,
+    "plan_size": 16,
+    "plan_pairs_used": 16,
+    "plan_utilization": 1.0
+  }
+}

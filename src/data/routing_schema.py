@@ -12,6 +12,7 @@ cross-token and cross-layer analysis is trivial.
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -62,6 +63,7 @@ class RoutingTrace:
     prompt_tokens: list[int]
     generated_tokens: list[int]
     routes: list[TokenRoute]
+    guide_affinity: Optional[list[list[float]]] = None
 
     def to_dict(self) -> dict:
         return {
@@ -80,6 +82,8 @@ class RoutingTrace:
                 }
                 for r in self.routes
             ],
+            "guide_affinity": self.guide_affinity
+                if self.guide_affinity is not None else None,
         }
 
     def save(self, path: str | Path) -> Path:
@@ -124,11 +128,100 @@ class RoutingTrace:
             prompt_tokens=raw["prompt_tokens"],
             generated_tokens=raw["generated_tokens"],
             routes=routes,
+            guide_affinity=raw.get("guide_affinity"),
         )
 
     @property
     def all_token_ids(self) -> list[int]:
         return self.prompt_tokens + self.generated_tokens
+
+    def validate(self) -> None:
+        """Verify internal consistency before the trace is saved.
+
+        Catches capture bugs — out-of-range experts, corrupt token
+        positions, wrong top-k arity, bad weights — so downstream stages
+        (affinity, preconfig, OCS replay) fail loudly instead of silently
+        consuming a poisoned trace. Raises ValueError listing all problems.
+        """
+        problems: list[str] = []
+        num_experts = self.meta.num_experts
+        top_k = self.meta.top_k
+        num_layers = self.meta.num_layers
+        total_tokens = self.meta.total_tokens
+
+        if not self.routes:
+            problems.append("no routes captured (empty trace)")
+
+        positions = [r.token_pos for r in self.routes]
+        if positions != sorted(positions) or len(set(positions)) != len(positions):
+            problems.append("token positions are not strictly increasing/unique")
+
+        for r in self.routes:
+            if not (0 <= r.token_pos < total_tokens):
+                problems.append(
+                    f"token_pos {r.token_pos} out of range [0, {total_tokens})"
+                )
+            for lid, lr in r.layers.items():
+                try:
+                    layer_idx = int(lid)
+                except ValueError:
+                    problems.append(f"layer id {lid!r} is not an integer")
+                    continue
+                if not (0 <= layer_idx < num_layers):
+                    problems.append(
+                        f"layer {layer_idx} out of range [0, {num_layers}) "
+                        f"at pos {r.token_pos}"
+                    )
+                for e in lr.experts:
+                    if not (0 <= e < num_experts):
+                        problems.append(
+                            f"expert {e} out of range [0, {num_experts}) "
+                            f"at pos {r.token_pos} layer {lid}"
+                        )
+                if top_k > 0 and len(lr.experts) != top_k:
+                    problems.append(
+                        f"pos {r.token_pos} layer {lid}: {len(lr.experts)} "
+                        f"experts != meta.top_k {top_k}"
+                    )
+                if lr.weights:
+                    if len(lr.weights) != len(lr.experts):
+                        problems.append(
+                            f"pos {r.token_pos} layer {lid}: weights arity "
+                            f"{len(lr.weights)} != experts arity {len(lr.experts)}"
+                        )
+                    # Top-k softmax masses sum to <= 1 (un-normalized) or ~1
+                    # (renormalized). Low-precision backends (fp16/bf16 gates)
+                    # can round slightly above 1, so allow a generous but
+                    # still meaningful bound that catches real corruption.
+                    s = sum(lr.weights)
+                    if (
+                        s <= 0.0
+                        or s > 1.5
+                        or any(w < 0 or w > 1.5 or not math.isfinite(w) for w in lr.weights)
+                    ):
+                        problems.append(
+                            f"pos {r.token_pos} layer {lid}: weights sum "
+                            f"{s:.4f} outside (0, 1.5] or non-finite/out-of-range weight"
+                        )
+
+        if self.meta.prompt_len + self.meta.generated_len != total_tokens:
+            problems.append(
+                "meta.prompt_len + meta.generated_len != meta.total_tokens"
+            )
+        if len(self.prompt_tokens) != self.meta.prompt_len:
+            problems.append(
+                f"{len(self.prompt_tokens)} prompt token ids != meta.prompt_len"
+            )
+        if len(self.generated_tokens) != self.meta.generated_len:
+            problems.append(
+                f"{len(self.generated_tokens)} generated token ids != meta.generated_len"
+            )
+
+        if problems:
+            raise ValueError(
+                "RoutingTrace validation failed:\n  - "
+                + "\n  - ".join(problems[:30])
+            )
 
     def total_routing_events(self) -> int:
         return sum(len(r.layers) for r in self.routes)

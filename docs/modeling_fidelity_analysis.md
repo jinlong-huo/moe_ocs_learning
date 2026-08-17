@@ -182,7 +182,7 @@ compute_delay(src, dst, bytes):
 
 | 组件                                                              | 可信度     | 依据                                                              |
 | ----------------------------------------------------------------- | ---------- | ----------------------------------------------------------------- |
-| **MoE 计算流程** (route→scatter→compute→gather→combine) | ★★★★★ | 与 5 个生产框架结构完全对齐 (ALIGNMENT.md 已验证)                 |
+| **MoE 计算流程** (route→scatter→compute→gather→combine) | ★★★★★ | 与 5 个生产框架结构完全对齐 ([docs/alignment.md](docs/alignment.md) 已验证)                 |
 | **Router 架构** (Linear gate + top-K)                       | ★★★★☆ | 缺 softmax in top-2, 缺 capacity factor, 但核心正确               |
 | **Expert 架构** (FFN GELU / SwitchGLU)                      | ★★★★★ | 与 Megatron/Tutel/Megablocks 一致，Qwen 权重可直接加载            |
 | **All-to-All 通信模式**                                     | ★★★★☆ | 使用`all_to_all_single`，但缺 variable split sizes (非均匀分布) |

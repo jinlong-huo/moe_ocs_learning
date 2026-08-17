@@ -1,0 +1,27 @@
+{
+  "num_experts": 32,
+  "top_k": 4,
+  "num_tokens": 256,
+  "num_moe_layers": 8,
+  "num_domains": 4,
+  "experts_per_domain": 8,
+  "noise_prob": 0.0,
+  "train_domains": [
+    0,
+    1,
+    2
+  ],
+  "test_domains": [
+    0,
+    3
+  ],
+  "train_files": [
+    "outputs/synthetic_traces_8rank/train_domain_00.json",
+    "outputs/synthetic_traces_8rank/train_domain_01.json",
+    "outputs/synthetic_traces_8rank/train_domain_02.json"
+  ],
+  "test_files": [
+    "outputs/synthetic_traces_8rank/test_domain_00.json",
+    "outputs/synthetic_traces_8rank/test_domain_03.json"
+  ]
+}

@@ -1,5 +1,5 @@
 """
-hook.py — MLX MoE routing capture producing canonical RoutingTrace format.
+mlx_capture.py — MLX MoE routing capture producing canonical RoutingTrace format.
 """
 
 from __future__ import annotations
