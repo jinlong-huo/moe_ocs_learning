@@ -1,0 +1,20 @@
+{"text": "Write a Python function to implement a Mixture of Experts router that selects the top-k experts based on token embeddings. The router should support load balancing loss."}
+{"text": "Explain how expert parallelism works in distributed training of MoE models. What are the key communication patterns?"}
+{"text": "Implement a sparse MoE layer in PyTorch where each token is routed to exactly 2 out of 8 experts. Include the gating mechanism and expert FFN."}
+{"text": "What is the difference between dropless MoE and capacity-factor-based MoE? When would you use each?"}
+{"text": "Design a load balancing loss function for MoE that encourages uniform expert utilization across tokens in a batch."}
+{"text": "Write code to compute the top-k indices and weights for a gating network in a mixture of experts model."}
+{"text": "Explain the all-to-all communication pattern used in MoE training. Why is it necessary and what are its bottlenecks?"}
+{"text": "Implement a shared expert in a MoE transformer block. How does it interact with the routed experts?"}
+{"text": "Compare DeepSeekMoE's fine-grained expert segmentation with standard MoE architectures. What advantages does it provide?"}
+{"text": "Write a training loop for an MoE language model that properly handles expert capacity and token dropping."}
+{"text": "How does the Qwen3 MoE architecture use 256 experts with only 3B active parameters? Explain the routing mechanism."}
+{"text": "Design an auxiliary loss that penalizes imbalanced expert assignment while allowing the model to learn specialized experts."}
+{"text": "Implement expert choice routing where experts choose the top tokens instead of tokens choosing experts."}
+{"text": "What are the memory bandwidth implications of having 256 small experts versus 8 large experts in an MoE model?"}
+{"text": "Write a function to visualize expert routing patterns across layers for a given input sequence."}
+{"text": "Explain how gradient checkpointing interacts with MoE layers during backpropagation. What state needs to be saved?"}
+{"text": "Implement a LoRA adapter for MoE expert layers. How does it reduce the number of trainable parameters?"}
+{"text": "Compare token-choice routing vs expert-choice routing. What are the trade-offs for load balancing?"}
+{"text": "Design a hybrid attention-MoE block that interleaves linear attention with sparse MoE feedforward layers."}
+{"text": "Write code to compute expert affinity scores for a batch of tokens and analyze the routing distribution."}

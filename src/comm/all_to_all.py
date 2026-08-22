@@ -59,6 +59,7 @@ def scatter_tokens(
     experts_per_rank: int,
     transport: Transport,
     async_op: bool = False,
+    placement: Optional["Placement"] = None,
 ):
     """Distribute tokens to expert ranks via all-to-all, using actual expert_ids.
 
@@ -96,9 +97,15 @@ def scatter_tokens(
 
     total_tokens = tokens.shape[0]  # T * top_k
 
-    # 1. Compute target rank and local expert for each (flattened) token
-    target_rank = expert_ids // experts_per_rank          # [T*K]
-    local_expert = expert_ids % experts_per_rank          # [T*K]
+    # 1. Compute target rank and local expert for each (flattened) token.
+    #    Placement-aware: the expert->rank table decides where each token goes.
+    #    When no placement is given, fall back to the historical linear mapping
+    #    (expert e -> rank e // k), which Placement.linear reproduces exactly.
+    if placement is not None:
+        target_rank, local_expert = placement.resolve(expert_ids)
+    else:
+        target_rank = expert_ids // experts_per_rank          # [T*K]
+        local_expert = expert_ids % experts_per_rank          # [T*K]
 
     # 2. Count tokens per destination rank
     send_counts = torch.zeros(world_size, dtype=torch.int64)

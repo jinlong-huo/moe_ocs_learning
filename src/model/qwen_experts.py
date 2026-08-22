@@ -26,6 +26,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.runtime.placement import Placement
+
 
 class QwenExpert(nn.Module):
     """A single Qwen SwitchGLU expert with loaded weights.
@@ -261,6 +263,7 @@ def create_qwen_moe_layer(
     num_experts: int = 256,
     top_k: int = 8,
     layer_idx: int = 0,
+    placement: Optional["Placement"] = None,
 ) -> "QwenMoELayerWrapper":
     """Build a MoE layer with Qwen experts and gate.
 
@@ -286,9 +289,14 @@ def create_qwen_moe_layer(
             break
 
     experts = nn.ModuleList()
-    for local_idx in range(experts_per_rank):
+    if placement is not None:
+        owned_expert_ids = placement.experts_on_rank(rank)
+    else:
+        owned_expert_ids = [
+            rank * experts_per_rank + local_idx for local_idx in range(experts_per_rank)
+        ]
+    for global_expert_id in owned_expert_ids:
         expert = QwenExpert(hidden_dim, intermediate_dim)
-        global_expert_id = rank * experts_per_rank + local_idx
         for ext in (".npz", ".pt"):
             expert_path = os.path.join(weight_dir, f"expert_{global_expert_id}{ext}")
             if os.path.exists(expert_path):
@@ -312,6 +320,7 @@ def create_qwen_moe_layer(
         top_k=top_k,
         rank=rank,
         world_size=world_size,
+        placement=placement,
     )
 
 
@@ -332,6 +341,7 @@ class QwenMoELayerWrapper(nn.Module):
         top_k: int,
         rank: int,
         world_size: int,
+        placement: Optional["Placement"] = None,
     ):
         super().__init__()
         self.router = gate
@@ -343,6 +353,11 @@ class QwenMoELayerWrapper(nn.Module):
         self.hidden_dim = gate.hidden_dim
         self._rank = rank
         self._world_size = world_size
+        self.placement = (
+            placement
+            if placement is not None
+            else Placement.linear(num_experts, experts_per_rank, world_size)
+        )
 
     @property
     def rank(self) -> int:
@@ -380,6 +395,7 @@ class QwenMoELayerWrapper(nn.Module):
         dispatch = scatter_tokens(
             tokens, expert_ids, self.num_experts,
             self.experts_per_rank, transport, async_op=False,
+            placement=self.placement,
         )
         expert_out = self.compute_experts(dispatch.tokens, dispatch.local_expert_ids)
         gathered = gather_tokens(expert_out, dispatch, transport, async_op=False)
@@ -393,6 +409,7 @@ class QwenMoELayerWrapper(nn.Module):
         dispatch = scatter_tokens(
             tokens, expert_ids, self.num_experts,
             self.experts_per_rank, transport, async_op=False,
+            placement=self.placement,
         )
         expert_out = self.compute_experts(dispatch.tokens, dispatch.local_expert_ids)
         gathered = gather_tokens(expert_out, dispatch, transport, async_op=False)

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+from typing import Optional
 
 from src.comm.transport import Transport
 from src.comm.all_to_all import (
@@ -35,6 +36,7 @@ from src.comm.all_to_all import (
 )
 from src.model.router import Router
 from src.model.experts import TinyExpert, FFNExpert
+from src.runtime.placement import Placement
 
 
 class MoELayer(nn.Module):
@@ -86,11 +88,15 @@ class MoELayer(nn.Module):
         # Set by worker after construction
         self._rank = None
         self._world_size = None
+        self.placement = None
 
     # -- Rank assignment -------------------------------------------------
 
-    def set_rank(self, rank: int, world_size: int) -> None:
-        """Store rank and validate world_size matches expert layout."""
+    def set_rank(self, rank: int, world_size: int, placement: Optional["Placement"] = None) -> None:
+        """Store rank, validate world_size matches expert layout, install placement.
+
+        ``placement`` is the independent expert->rank table (linear by default).
+        """
         expected = self.num_experts // self.experts_per_rank
         if world_size != expected:
             raise ValueError(
@@ -100,6 +106,11 @@ class MoELayer(nn.Module):
             )
         self._rank = rank
         self._world_size = world_size
+        self.placement = (
+            placement
+            if placement is not None
+            else Placement.linear(self.num_experts, self.experts_per_rank, world_size)
+        )
 
     @property
     def rank(self) -> int:
@@ -128,6 +139,7 @@ class MoELayer(nn.Module):
         dispatch = scatter_tokens(
             tokens, expert_ids, self.num_experts,
             self.experts_per_rank, transport, async_op=False,
+            placement=self.placement,
         )
 
         # Step 3: Expert computation
@@ -161,6 +173,7 @@ class MoELayer(nn.Module):
         dispatch = scatter_tokens(
             tokens, expert_ids, self.num_experts,
             self.experts_per_rank, transport, async_op=False,
+            placement=self.placement,
         )
 
         # Step 3: Expert computation

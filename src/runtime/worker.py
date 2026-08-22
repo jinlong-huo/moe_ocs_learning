@@ -37,6 +37,58 @@ from src.utils.logging import log, log_summary
 from src.utils.seed import set_seed
 from src.comm.timeline import export_chrome_trace
 
+from src.runtime.placement import Placement
+
+
+def _resolve_placement(config, num_experts, experts_per_rank, world_size):
+    """Build the independent expert->rank / rank->physical Placement from config.
+
+    Strategies:
+      - linear      (default): contiguous e // k mapping (historical behavior)
+      - shuffle     : seeded random uniform permutation
+      - affinity    : greedy co-activation clustering from a routing trace
+      - permutation : explicit per-rank expert lists (placement.rank_experts)
+    """
+    pc = config.get("placement", {}) or {}
+    strategy = pc.get("strategy", "linear")
+
+    rank_locations = None
+    if pc.get("rank_locations"):
+        rank_locations = [tuple(t) for t in pc["rank_locations"]]
+
+    if strategy == "linear":
+        return Placement.linear(
+            num_experts, experts_per_rank, world_size,
+            rank_to_location=rank_locations,
+        )
+    if strategy == "shuffle":
+        return Placement.shuffled(
+            num_experts, experts_per_rank, world_size,
+            seed=pc.get("seed", 0),
+            rank_to_location=rank_locations,
+        )
+    if strategy == "affinity":
+        from src.ocs.preconfig import _build_affinity_from_trace
+        trace_path = pc.get("trace_path", "data/routing_traces/routing.json")
+        trace = RoutingTrace.load(trace_path)
+        tracker = _build_affinity_from_trace(trace, num_experts)
+        rank_experts = tracker.suggest_placement(experts_per_rank, world_size)
+        return Placement.from_permutation(
+            rank_experts, experts_per_rank, world_size,
+            rank_to_location=rank_locations,
+        )
+    if strategy == "permutation":
+        rank_experts = pc.get("rank_experts")
+        if rank_experts is None:
+            raise ValueError(
+                "placement.strategy='permutation' requires placement.rank_experts"
+            )
+        return Placement.from_permutation(
+            rank_experts, experts_per_rank, world_size,
+            rank_to_location=rank_locations,
+        )
+    raise ValueError(f"Unknown placement.strategy: {strategy!r}")
+
 
 def worker(
     rank: int,
@@ -63,6 +115,18 @@ def worker(
     runtime_cfg = config["runtime"]
     data_cfg = config["data"]
 
+    # -- Placement: independent expert->rank / rank->physical table -----
+    # Resolved once, up front: it feeds both the dispatch (expert -> rank)
+    # and the topology delay model (rank -> physical location).
+    experts_per_rank = model_cfg.get("experts_per_rank", 1)
+    expert_type = model_cfg.get("expert_type", "tiny")
+    # Effective expert count (Qwen may override model.num_experts)
+    if expert_type == "qwen":
+        num_experts = config.get("qwen", {}).get("num_experts", model_cfg["num_experts"])
+    else:
+        num_experts = model_cfg["num_experts"]
+    placement = _resolve_placement(config, num_experts, experts_per_rank, world_size)
+
     # -- Build topology (if enabled) ---------------------------------
     topo_cfg = config.get("topology", {})
     topology = None
@@ -78,6 +142,12 @@ def worker(
             intra_pod_bandwidth_gbps=topo_cfg.get("intra_pod_bandwidth_gbps", 200.0),
             cross_pod_bandwidth_gbps=topo_cfg.get("cross_pod_bandwidth_gbps", 100.0),
             delay_multiplier=topo_cfg.get("delay_multiplier", 1.0),
+            # Rank -> physical location comes from the SAME placement object
+            # that owns expert -> rank (single source of truth).
+            rank_locations=(
+                {i: tuple(t) for i, t in enumerate(placement.rank_to_location)}
+                if placement.rank_to_location else None
+            ),
         ))
         # Pre-assign ALL ranks (each spawned process has its own copy of topology)
         for r in range(world_size):
@@ -106,7 +176,7 @@ def worker(
 
         # Build affinity tracker if using affinity placement
         if ocs_cfg.get("placement_strategy") == "affinity":
-            affinity_tracker = ExpertAffinityTracker(model_cfg["num_experts"])
+            affinity_tracker = ExpertAffinityTracker(num_experts)
             log(rank, "OCS affinity placement: tracking expert co-activation")
 
     # -- Build PathResolver for mixed EPS+OCS transport (NEW) ------------------
@@ -144,8 +214,6 @@ def worker(
         path_resolver=path_resolver,
     )
 
-    experts_per_rank = model_cfg.get("experts_per_rank", 1)
-    expert_type = model_cfg.get("expert_type", "tiny")
     routing_strategy = config.get("routing", {}).get("strategy", "fixed")
 
     # ── Build model: synthetic MoELayer or real Qwen experts ────────
@@ -154,7 +222,7 @@ def worker(
         weight_dir = qwen_cfg.get("weight_dir", "exported_qwen_weights/layer_0")
         intermediate_dim = qwen_cfg.get("intermediate_dim", 512)
         hidden_dim_override = qwen_cfg.get("hidden_dim", model_cfg["hidden_dim"])
-        num_experts_qwen = qwen_cfg.get("num_experts", model_cfg["num_experts"])
+        num_experts_qwen = num_experts  # already resolved from the qwen override
         top_k_qwen = qwen_cfg.get("top_k", model_cfg.get("top_k", 8))
 
         moe = create_qwen_moe_layer(
@@ -166,6 +234,7 @@ def worker(
             intermediate_dim=intermediate_dim,
             num_experts=num_experts_qwen,
             top_k=top_k_qwen,
+            placement=placement,
         )
         log(rank, f"Model: Qwen experts from {weight_dir} "
             f"dim={hidden_dim_override} intermediate={intermediate_dim} "
@@ -180,7 +249,7 @@ def worker(
             routing_strategy=routing_strategy,
             experts_per_rank=experts_per_rank,
         )
-        moe.set_rank(rank, world_size)
+        moe.set_rank(rank, world_size, placement=placement)
 
     # ── Routing-replay: replace router with captured trace ─────────
     replay_cfg = config.get("routing_replay", {})
@@ -326,6 +395,7 @@ def worker(
                     eids, gws, _ = moe.router(tokens)
                 affinity_tracker.record_routing(eids, gws)
             plan = affinity_tracker.compute_circuit_plan(
+                expert_to_rank=placement.expert_to_rank_dict(),
                 experts_per_rank=experts_per_rank,
                 world_size=world_size,
                 max_circuits=ocs_cfg.get("max_circuits", 16),
@@ -365,6 +435,7 @@ def worker(
             update_interval_steps=update_interval,
             decay_factor=decay_factor,
             rank=rank,
+            placement=placement,
         )
         log(rank, f"OCS online: adaptive affinity, "
             f"update_interval={update_interval}, decay={decay_factor}")

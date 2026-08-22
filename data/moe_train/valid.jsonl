@@ -1,0 +1,4 @@
+{"text": "Explain the concept of capacity factor in MoE training and how it affects token dropping."}
+{"text": "Write a PyTorch implementation of a top-k gating function with auxiliary load balancing loss."}
+{"text": "How does DeepSpeed's MoE implementation handle expert parallelism across multiple GPUs?"}
+{"text": "Describe the router z-loss and why it helps stabilize MoE training."}

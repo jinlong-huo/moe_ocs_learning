@@ -38,15 +38,20 @@ from src.ocs.placement import ExpertAffinityTracker
 
 
 def _target_ranks_from_experts(
-    expert_ids: torch.Tensor, experts_per_rank: int,
+    expert_ids: torch.Tensor, experts_per_rank: int, placement=None,
 ) -> list:
     """Derive target ranks for communication from expert assignments.
 
-    Each expert_id maps to a target rank via: rank = expert_id // experts_per_rank.
-    Returns a deduplicated list of rank IDs this micro-batch communicates with.
+    Each expert_id maps to a target rank via the placement table (or the
+    historical ``rank = expert_id // experts_per_rank`` when no placement is
+    given). Returns a deduplicated list of rank IDs this micro-batch talks to.
     """
     ids = expert_ids.reshape(-1)
-    return list(set((ids // experts_per_rank).tolist()))
+    if placement is not None:
+        ranks = placement.resolve(ids)[0]
+    else:
+        ranks = ids // experts_per_rank
+    return list(set(ranks.tolist()))
 
 
 class OnlineAffinityController:
@@ -88,6 +93,7 @@ class OnlineAffinityController:
         update_interval_steps: int = 1,
         decay_factor: float = 1.0,
         rank: int = 0,
+        placement=None,
     ):
         self.tracker = affinity_tracker
         self.pool = circuit_pool
@@ -97,6 +103,7 @@ class OnlineAffinityController:
         self.update_interval_steps = update_interval_steps
         self.decay_factor = decay_factor
         self.rank = rank
+        self.placement = placement
 
         self._step_count = 0
         self._total_circuits_adjusted = 0
@@ -134,7 +141,7 @@ class OnlineAffinityController:
                 self.apply_decay()
 
         # Return immediate targets for THIS micro-batch (same as ocs_pipeline)
-        return _target_ranks_from_experts(expert_ids, self.experts_per_rank)
+        return _target_ranks_from_experts(expert_ids, self.experts_per_rank, placement=self.placement)
 
     def record(self, expert_ids: torch.Tensor, gate_weights: torch.Tensor) -> None:
         """Feed one routing decision into the tracker (without returning targets).
@@ -188,7 +195,11 @@ class OnlineAffinityController:
             List of (src_rank, dst_rank, score) sorted by score descending,
             capped at max_circuits entries.
         """
+        expert_to_rank = (
+            self.placement.expert_to_rank_dict() if self.placement is not None else None
+        )
         plan = self.tracker.compute_circuit_plan(
+            expert_to_rank=expert_to_rank,
             experts_per_rank=self.experts_per_rank,
             world_size=self.world_size,
             max_circuits=self.max_circuits,

@@ -45,3 +45,9 @@ venv/
 
 # Claude Code
 .claude/
+
+# Pre-merge history archive (moe_mlx_learning git bundle)
+*.bundle
+
+# Local AI tool session state (not repo content)
+.codewhale/

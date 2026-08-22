@@ -28,9 +28,10 @@ NOTE: vLLM is CUDA-only upstream. On Apple Silicon the vllm-metal plugin
 (https://github.com/vllm-project/vllm-metal) runs MLX-format models through
 the Metal GPU backend; routing capture then patches the MLX MoE blocks
 (``install_vllm_metal_hooks``). Hooks require the in-process engine core
-(``VLLM_ENABLE_V1_MULTIPROCESSING=0``, set automatically). Set
-``MASTER_ADDR=127.0.0.1`` on macOS if PyTorch's distributed store resolves
-the hostname to a non-loopback IP.
+(``VLLM_ENABLE_V1_MULTIPROCESSING=0``, set automatically). The host IP is
+pinned to loopback (``VLLM_HOST_IP=127.0.0.1`` + ``MASTER_ADDR``) — the
+macOS hostname can resolve to a non-loopback LAN IP and crash PyTorch's
+TCPStore.
 """
 
 from __future__ import annotations
@@ -135,6 +136,11 @@ def _run_vllm_generation(args: argparse.Namespace, steering) -> int:
     # a separate EngineCore process by default, so force the in-process core
     # (V0-style). Also required for the vllm-metal (MLX) backend on macOS.
     os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")
+    # macOS loopback: the machine hostname may resolve to an unreachable LAN IP
+    # (e.g. 10.23.0.1), which crashes PyTorch's TCPStore. Pin the host IP to
+    # loopback — vLLM reads VLLM_HOST_IP, not MASTER_ADDR, for this.
+    os.environ.setdefault("VLLM_HOST_IP", "127.0.0.1")
+    os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
 
     from vllm import LLM
     from src.data.vllm_capture import (

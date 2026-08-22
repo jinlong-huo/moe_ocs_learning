@@ -10,7 +10,7 @@ from collections import defaultdict
 class RoutingCapture:
     """Collects per-token, per-layer expert routing decisions during MLX generation.
 
-    Produces data compatible with ``moe_framework.schema.RoutingTrace``.
+    Produces data compatible with ``src.data.routing_schema.RoutingTrace``.
     A single ``state`` dict is shared between the generation loop and the
     patched MoE forward so that absolute token positions are always correct.
 

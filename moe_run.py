@@ -23,6 +23,26 @@ from mlx_lm import load
 from mlx_lm.models.cache import make_prompt_cache
 
 
+def _load_with_fallback(model_path: str, adapter_path: str | None = None):
+    """Load via mlx_lm; shim unknown model_type to a known module on failure.
+
+    E.g. Hy3 (model_type ``hy_v3``) maps to ``mlx_lm.models.hunyuan`` in
+    mlx_lm versions that predate a dedicated hy_v3 module.
+    """
+    try:
+        return load(model_path, adapter_path=adapter_path)
+    except Exception as exc:
+        msg = str(exc)
+        if "not supported" not in msg and "No module named" not in msg:
+            raise
+        import mlx_lm.utils as _u
+
+        _u.MODEL_REMAPPING.setdefault("hy_v3", "hunyuan")
+        _u.MODEL_REMAPPING.setdefault("hy_v3_moe", "hunyuan")
+        print("[load] model_type unsupported — shimmed via MODEL_REMAPPING")
+        return load(model_path, adapter_path=adapter_path)
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Guide model — dense generalised model for affinity graph prior
 # ═══════════════════════════════════════════════════════════════════
@@ -71,9 +91,16 @@ def _make_patched_call(capture):
         )
 
         # ── Route through SwitchGLU experts + shared expert ──
-        y = self.switch_mlp(x, inds)
-        y = (y * scores[..., None]).sum(axis=-2)
-        y = y + mx.sigmoid(self.shared_expert_gate(x)) * self.shared_expert(x)
+        if getattr(self, "use_shared_mlp", False):
+            # Hy3 / hunyuan path (mirrors mlx_lm hunyuan.MoeBlock.__call__)
+            y = self.switch_mlp(x, inds)
+            y = (y * scores[..., None].astype(mx.float32)).sum(axis=-2).astype(y.dtype)
+            y = y + self.shared_mlp(x)
+        else:
+            # Qwen path (unchanged)
+            y = self.switch_mlp(x, inds)
+            y = (y * scores[..., None]).sum(axis=-2)
+            y = y + mx.sigmoid(self.shared_expert_gate(x)) * self.shared_expert(x)
         return y
 
     return patched_call
@@ -242,7 +269,7 @@ def main():
         print(f"[error] Model not found: {model_path}")
         return 1
 
-    model, tokenizer = load(str(model_path), adapter_path=args.adapter_path)
+    model, tokenizer = _load_with_fallback(str(model_path), adapter_path=args.adapter_path)
     print(f"[load] Model: {args.model}")
     if args.adapter_path:
         print(f"[load] Adapter: {args.adapter_path}")
@@ -300,8 +327,13 @@ def main():
     for step in range(args.max_tokens):
         state["phase"] = "decode"
 
-        next_token = mx.random.categorical(logits / args.temp)
-        next_token_id = int(next_token.item())
+        # Greedy decoding (--temp 0 -> argmax) for deterministic traces
+        if args.temp <= 0:
+            next_token_id = int(mx.argmax(logits, axis=-1).item())
+            next_token = mx.array([next_token_id])
+        else:
+            next_token = mx.random.categorical(logits / args.temp)
+            next_token_id = int(next_token.item())
         generated_tokens.append(next_token_id)
 
         decoded = tokenizer.decode([next_token_id])

@@ -69,6 +69,7 @@ def run_serial(
         dispatch = scatter_tokens(
             tokens, expert_ids, moe.num_experts,
             moe.experts_per_rank, transport, async_op=False,
+            placement=getattr(moe, "placement", None),
         )
         timer.stop(f"step/{step}/mb_{mb_idx}/scatter")
 
@@ -147,6 +148,7 @@ def run_overlap(
         scatter_result, scatter_handle = scatter_tokens(
             tokens, expert_ids, moe.num_experts,
             moe.experts_per_rank, transport, async_op=True,
+            placement=getattr(moe, "placement", None),
         )
         timer.stop(f"step/{step}/mb_{mb_idx}/scatter")
 
@@ -344,7 +346,7 @@ def run_ocs_pipeline(
 
         # --- OCS: pre-establish circuits for THIS micro-batch's targets ---
         timer.start(f"step/{step}/mb_{mb_idx}/ocs_pre_establish")
-        target_ranks = _target_ranks_from_experts(expert_ids, moe.experts_per_rank)
+        target_ranks = _target_ranks_from_experts(expert_ids, moe.experts_per_rank, placement=getattr(moe, "placement", None))
         transport.pre_establish_circuits(target_ranks)
         timer.stop(f"step/{step}/mb_{mb_idx}/ocs_pre_establish")
 
@@ -360,6 +362,7 @@ def run_ocs_pipeline(
         scatter_result, scatter_handle = scatter_tokens(
             tokens, expert_ids, moe.num_experts,
             moe.experts_per_rank, transport, async_op=True,
+            placement=getattr(moe, "placement", None),
         )
         timer.stop(f"step/{step}/mb_{mb_idx}/scatter")
 
@@ -486,6 +489,7 @@ def run_ocs_dbo(
             next_expert_ids, _next_gate_weights = routes[next_mb]
             next_targets = _target_ranks_from_experts(
                 next_expert_ids, moe.experts_per_rank,
+                placement=getattr(moe, "placement", None),
             )
             transport.pre_establish_circuits(next_targets)
             timer.stop(f"step/{step}/mb_{next_mb}/ocs_pre_establish")
@@ -503,6 +507,7 @@ def run_ocs_dbo(
         scatter_result, scatter_handle = scatter_tokens(
             tokens, expert_ids, moe.num_experts,
             moe.experts_per_rank, transport, async_op=True,
+            placement=getattr(moe, "placement", None),
         )
         timer.stop(f"step/{step}/mb_{mb_idx}/scatter")
 
@@ -611,6 +616,7 @@ def run_ocs_preset(
         scatter_result, scatter_handle = scatter_tokens(
             tokens, expert_ids, moe.num_experts,
             moe.experts_per_rank, transport, async_op=True,
+            placement=getattr(moe, "placement", None),
         )
         timer.stop(f"step/{step}/mb_{mb_idx}/scatter")
 
@@ -746,7 +752,7 @@ def run_ocs_online(
         #  High-affinity circuits may already be hot from the controller's
         #  background adjustment, so pre_establish is a fast no-op for those.
         timer.start(f"step/{step}/mb_{mb_idx}/ocs_pre_establish")
-        target_ranks = _target_ranks_from_experts(expert_ids, moe.experts_per_rank)
+        target_ranks = _target_ranks_from_experts(expert_ids, moe.experts_per_rank, placement=getattr(moe, "placement", None))
         transport.pre_establish_circuits(target_ranks)
         timer.stop(f"step/{step}/mb_{mb_idx}/ocs_pre_establish")
 
@@ -762,6 +768,7 @@ def run_ocs_online(
         scatter_result, scatter_handle = scatter_tokens(
             tokens, expert_ids, moe.num_experts,
             moe.experts_per_rank, transport, async_op=True,
+            placement=getattr(moe, "placement", None),
         )
         timer.stop(f"step/{step}/mb_{mb_idx}/scatter")
 

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import Dict, Optional, Tuple
 
 
 class LinkTier(IntEnum):
@@ -64,6 +65,12 @@ class TopologyConfig:
     # Multiplier applied to all delays (for scaling experiments)
     delay_multiplier: float = 1.0
 
+    # Optional explicit rank -> physical location override (placement variable).
+    # Maps rank -> (pod_id, node_id, local_rank). When present, ``assign`` uses
+    # this table instead of the flat linear formula. Ranks not present in the
+    # dict fall back to the linear formula.
+    rank_locations: Optional[Dict[int, Tuple[int, int, int]]] = None
+
 
 @dataclass
 class RankLocation:
@@ -97,7 +104,18 @@ class Topology:
     # -- Rank placement -------------------------------------------------
 
     def assign(self, rank: int) -> RankLocation:
-        """Assign a rank to its physical location and return it."""
+        """Assign a rank to its physical location and return it.
+
+        Honors an explicit ``rank_locations`` override (the placement variable)
+        before falling back to the flat linear formula.
+        """
+        override = self.config.rank_locations
+        if override is not None and rank in override:
+            pod_id, node_id, local_rank = override[rank]
+            loc = RankLocation(pod_id=pod_id, node_id=node_id, local_rank=local_rank)
+            self._locations[rank] = loc
+            return loc
+
         pod_id = rank // self._total_per_pod
         remainder = rank % self._total_per_pod
         node_id = remainder // self.config.ranks_per_node

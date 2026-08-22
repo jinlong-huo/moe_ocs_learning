@@ -1,0 +1,4 @@
+{"text": "What are the key differences between training a dense transformer and a sparse MoE transformer?"}
+{"text": "Implement a gating network that uses noisy top-k gating for expert selection in MoE."}
+{"text": "Explain how expert specialization emerges during MoE training and how to measure it."}
+{"text": "How does the Qwen3.6-35B-A3B model achieve strong performance with only 3B active parameters?"}
