@@ -249,7 +249,7 @@ class OcsCircuitPool:
 
 
 class FixedDelayCircuitPool:
-    """Field-standard OCS cost model: OCS = EPS tier cost + fixed reconfig.
+    """Field-standard OCS cost model: EPS tier cost + fixed reconfig per switch.
 
     Most OCS simulations in the literature do NOT model a finite circuit
     cache with LRU eviction. They model the switch as: every transfer pays
@@ -258,15 +258,23 @@ class FixedDelayCircuitPool:
 
         T_ocs(src, dst, bytes) = T_eps(src, dst, bytes) + T_reconfig * [cold]
 
-    The circuit capacity is effectively unlimited (the OCS fabric can hold
-    all rank pairs), so there is no eviction and no eviction penalty —
-    making OCS directly comparable with the EPS baseline: same fabric, same
-    bytes, plus a fixed delay per circuit switch.
+    Authenticity constraint — circuit budget: a real switch has a finite
+    number of ports / wavelengths, so each rank can hold at most
+    ``max_circuits`` simultaneous outgoing circuits. When the budget is
+    exhausted, the OLDEST circuit is reassigned (FIFO port reassignment —
+    a scheduling policy, not an LRU cache), paying T_reconfig. With
+    max_circuits = world_size - 1 the switch has full fan-out (one
+    wavelength per destination, WSS-style); with max_circuits = 1 it is a
+    single-port space switch (MEMS) that must serially re-point per
+    destination — which is exactly where OCS's reconfiguration pressure
+    comes from in real all-to-all workloads.
 
     Two canonical parameterizations of T_reconfig are provided as configs
     (see README "EPS vs OCS cost models"):
-      - alpha model: fast switch class (SOA / ring-resonator), T_reconfig ≈ 1 us
-      - beta  model: MEMS beam-steering class,             T_reconfig ≈ 50 us
+      - alpha model: fast switch class (SOA / ring-resonator, ns-us),
+                     T_reconfig ≈ 1 us
+      - beta  model: MEMS beam-steering class (tens of us mechanical +
+                     damping), T_reconfig ≈ 50 us
 
     This class exposes the same interface as OcsCircuitPool so Transport,
     the schedulers, and the worker need no changes.
@@ -278,13 +286,20 @@ class FixedDelayCircuitPool:
         topology=None,           # Topology for the EPS tier cost (may be None)
         flat_delay_us: float = 0.0,  # EPS fallback when topology is disabled
         world_size: int = 1,
+        max_circuits: int | None = None,  # per-rank circuit budget (ports);
+                                          # None = full fan-out (world_size-1)
     ):
         self.reconfig_time_us = reconfig_time_us
         self.topology = topology
         self.flat_delay_us = flat_delay_us
-        self.max_circuits = world_size * world_size  # unlimited: all rank pairs
+        if max_circuits is None:
+            max_circuits = max(1, world_size - 1)
+        if max_circuits < 1:
+            raise ValueError(f"max_circuits must be >= 1, got {max_circuits}")
+        self.max_circuits = max_circuits
 
-        self._circuits: set[Tuple[int, int]] = set()
+        # FIFO: oldest established circuit first — port reassignment order.
+        self._circuits: "OrderedDict[Tuple[int, int], OcsCircuit]" = OrderedDict()
         self.metrics = OcsPoolMetrics()
 
     # -- Query -----------------------------------------------------------
@@ -312,8 +327,9 @@ class FixedDelayCircuitPool:
 
         Returns the fixed reconfiguration time incurred (microseconds):
           0.0 if the circuit was already established (hot path),
-          reconfig_time_us otherwise (cold path). No eviction ever happens —
-          capacity is unlimited, mirroring the field-standard model.
+          reconfig_time_us otherwise (cold path). When the per-rank circuit
+          budget is exhausted, the oldest circuit is reassigned (FIFO) and
+          also pays reconfig_time_us.
         """
         key = (src, dst)
         self.metrics.total_requests += 1
@@ -323,29 +339,54 @@ class FixedDelayCircuitPool:
             return 0.0
 
         self.metrics.circuit_establishes += 1
-        self._circuits.add(key)
+
+        if len(self._circuits) >= self.max_circuits:
+            # Port reassignment: repoint the oldest circuit.
+            evicted_key, _evicted = self._circuits.popitem(last=False)
+            self.metrics.circuit_evictions += 1
+
+        circuit = OcsCircuit(
+            src_rank=src,
+            dst_rank=dst,
+            state=OcsCircuitState.ACTIVE,
+            bw_gbps=0.0,  # data path = EPS fabric; BW comes from the topology
+            established_at_ns=current_time_ns,
+            last_used_at_ns=current_time_ns,
+        )
+        self._circuits[key] = circuit
         self.metrics.total_reconfig_time_us += self.reconfig_time_us
         return self.reconfig_time_us
 
     def pre_config(self, plan: list, current_time_ns: int = 0) -> int:
         """Batch-establish circuits from a pre-computed placement plan.
 
-        All plan circuits are established (no capacity cap). Used by preset
-        mode: the reconfig cost is paid before inference begins, so it does
-        not appear on the inference-time critical path.
+        Establishes plan circuits up to the per-rank budget (no overflow).
+        Used by preset mode: the reconfig cost is paid before inference
+        begins, so it does not appear on the inference-time critical path.
         """
         established = 0
         for src, dst, _score in plan:
+            if len(self._circuits) >= self.max_circuits:
+                break
             if (src, dst) in self._circuits:
                 continue
-            self._circuits.add((src, dst))
+            circuit = OcsCircuit(
+                src_rank=src,
+                dst_rank=dst,
+                state=OcsCircuitState.ACTIVE,
+                bw_gbps=0.0,
+                established_at_ns=current_time_ns,
+                last_used_at_ns=current_time_ns,
+                pre_established=True,
+            )
+            self._circuits[key := (src, dst)] = circuit
             self.metrics.circuit_establishes += 1
             established += 1
         return established
 
     def pre_established_count(self) -> int:
-        """Preset mode: every circuit was pre-established (no per-circuit tag)."""
-        return len(self._circuits)
+        """Number of circuits that were pre-established (preset mode)."""
+        return sum(1 for c in self._circuits.values() if c.pre_established)
 
     def compute_delay(
         self, src: int, dst: int, tensor_bytes: int, current_time_ns: int = 0,
@@ -354,7 +395,8 @@ class FixedDelayCircuitPool:
 
         EPS part: the same tier-aware pairwise cost the electrical baseline
         pays (topology), or the flat delay when topology is disabled.
-        OCS part: the fixed reconfig delay if this circuit is cold.
+        OCS part: the fixed reconfig delay if this circuit is cold (or a
+        port had to be reassigned).
 
         Returns total delay in microseconds. Side effect: updates circuit state.
         """
@@ -375,6 +417,7 @@ class FixedDelayCircuitPool:
         return {
             "cost_model": "fixed_delay",
             "reconfig_time_us": self.reconfig_time_us,
+            "max_circuits": self.max_circuits,
             "active_count": len(self._circuits),
             "reuse_ratio": self.reuse_ratio,
             "metrics": {

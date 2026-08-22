@@ -2,14 +2,19 @@
 #
 # Field-standard OCS simulation: every transfer pays the SAME tier-aware EPS
 # cost as the electrical baseline, plus a FIXED reconfiguration delay once
-# per newly established circuit (no LRU, no eviction — capacity unlimited):
+# per newly established circuit (no LRU cache — a per-rank circuit budget
+# with FIFO port reassignment):
 #
 #   T_ocs = T_eps(src, dst, bytes) + T_reconfig × N_switches
 #
-# alpha = fast optical switch technology (SOA / ring-resonator class),
-# T_reconfig ≈ 1 us. Same 2×2×1 fabric as configs/qwen_eps_baseline.yaml so
-# the two are directly comparable.
+# alpha = fast optical switch class: SOA-gated / ring-resonator switches
+# reconfigure in ns–us (cf. Sirius, SIGCOMM 2016: nanosecond optical
+# switching). T_reconfig = 1 us here, and the switch has FULL FAN-OUT —
+# max_circuits: 3 = world_size - 1, one circuit (wavelength) per destination,
+# WSS-style, so reconfiguration only happens when the target set changes.
 #
+# Same 2×2×1 fabric as configs/qwen_eps_baseline.yaml for a direct
+# apples-to-apples comparison:
 #   python3 scripts/compare_ocs_models.py   # EPS vs alpha vs beta table
 
 extends: qwen_ocs_base
@@ -29,8 +34,8 @@ topology:
 ocs:
   enabled: true
   cost_model: fixed_delay     # EPS tier cost + fixed reconfig per switch
-  reconfig_time_us: 1.0       # alpha: SOA / ring-resonator class (~ns-us)
-  max_circuits: 16            # unused by fixed_delay (unlimited capacity)
+  reconfig_time_us: 1.0       # alpha: SOA / ring-resonator class (ns-us)
+  max_circuits: 3             # full fan-out: one circuit per destination
 
 runtime:
   mode: "ocs_pipeline"        # runtime reconfig, paid inline before scatter

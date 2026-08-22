@@ -89,6 +89,8 @@ def run_model(name: str, config: str, trace_dir: Path, verbose: bool = False) ->
         "ocs_enabled": bool(ocs_meta.get("enabled", False)),
         "ocs_cost_model": ocs_meta.get("cost_model", "lru")
         if isinstance(ocs_meta, dict) else "lru",
+        "ocs_circuit_budget": ocs_meta.get("max_circuits", None)
+        if isinstance(ocs_meta, dict) else None,
         "ocs_reconfig_total_us": ocs_metrics.get("total_reconfig_time_us", 0.0),
         "ocs_establishes": ocs_metrics.get("circuit_establishes", 0),
         "ocs_reuses": ocs_metrics.get("circuit_reuses", 0),
@@ -114,19 +116,21 @@ def main() -> int:
     print("EPS vs OCS — fixed-delay cost models (real Qwen weights, 2x2x1 fabric)")
     print("=" * 78)
     print(f"{'model':<38s} {'comm_us':>12s} {'reconfig_us':>12s} "
-          f"{'est':>5s} {'reuse':>6s} {'evict':>6s}")
+          f"{'budget':>7s} {'est':>5s} {'reuse':>6s} {'reassign':>9s}")
     for r in results:
+        budget = "-" if r["ocs_circuit_budget"] is None else str(r["ocs_circuit_budget"])
         print(f"{r['label']:<38s} {r['comm_us']:>12.1f} "
               f"{r['ocs_reconfig_total_us']:>12.1f} "
-              f"{r['ocs_establishes']:>5d} {r['ocs_reuses']:>6d} "
-              f"{r['ocs_evictions']:>6d}")
+              f"{budget:>7s} {r['ocs_establishes']:>5d} {r['ocs_reuses']:>6d} "
+              f"{r['ocs_evictions']:>9d}")
 
     print("\nDeltas vs EPS baseline:")
     for r in results[1:]:
         delta = r["comm_us"] - eps["comm_us"]
         extra = r["ocs_reconfig_total_us"]
-        print(f"  {r['name']:<12s}: comm +{delta:>10.1f} us "
-              f"(reconfig {extra:.1f} us over {r['ocs_establishes']} switches)")
+        print(f"  {r['name']:<12s}: comm {delta:>+10.1f} us vs EPS "
+              f"(reconfig {extra:.1f} us over {r['ocs_establishes']} switches, "
+              f"{r['ocs_evictions']} port reassignments)")
 
     report = {
         "experiment": "eps_vs_ocs_fixed_delay",
@@ -135,9 +139,9 @@ def main() -> int:
         "cost_models": {
             "eps": "tier-aware electrical packet switching",
             "ocs": "T_ocs = T_eps + T_reconfig x N_switches (fixed delay, "
-                   "no LRU, no eviction)",
-            "alpha": "T_reconfig = 1 us (SOA / ring-resonator class)",
-            "beta": "T_reconfig = 50 us (MEMS beam-steering class)",
+                   "per-rank circuit budget with FIFO port reassignment)",
+            "alpha": "T_reconfig = 1 us, full fan-out WSS (SOA / ring class)",
+            "beta": "T_reconfig = 50 us, single-port MEMS beam-steering",
         },
         "models": results,
     }

@@ -3,20 +3,21 @@
   "fabric": "2 pods x 2 nodes x 1 rank; NVLink 1us/900GB/s, NDR 3us/400Gb/s, core 10us/200Gb/s",
   "cost_models": {
     "eps": "tier-aware electrical packet switching",
-    "ocs": "T_ocs = T_eps + T_reconfig x N_switches (fixed delay, no LRU, no eviction)",
-    "alpha": "T_reconfig = 1 us (SOA / ring-resonator class)",
-    "beta": "T_reconfig = 50 us (MEMS beam-steering class)"
+    "ocs": "T_ocs = T_eps + T_reconfig x N_switches (fixed delay, per-rank circuit budget with FIFO port reassignment)",
+    "alpha": "T_reconfig = 1 us, full fan-out WSS (SOA / ring class)",
+    "beta": "T_reconfig = 50 us, single-port MEMS beam-steering"
   },
   "models": [
     {
       "name": "eps_baseline",
       "label": "EPS baseline",
       "config": "configs/qwen_eps_baseline.yaml",
-      "total_event_us": 322866,
-      "comm_us": 23962,
-      "route_us": 298904,
+      "total_event_us": 293022,
+      "comm_us": 22089,
+      "route_us": 270933,
       "ocs_enabled": false,
       "ocs_cost_model": "lru",
+      "ocs_circuit_budget": null,
       "ocs_reconfig_total_us": 0.0,
       "ocs_establishes": 0,
       "ocs_reuses": 0,
@@ -26,29 +27,31 @@
       "name": "ocs_alpha",
       "label": "OCS alpha (T_reconfig=1us, fast switch)",
       "config": "configs/ocs_alpha_model.yaml",
-      "total_event_us": 417792,
-      "comm_us": 22911,
-      "route_us": 394881,
+      "total_event_us": 300150,
+      "comm_us": 25487,
+      "route_us": 274663,
       "ocs_enabled": true,
       "ocs_cost_model": "fixed_delay",
+      "ocs_circuit_budget": 3,
       "ocs_reconfig_total_us": 3.0,
       "ocs_establishes": 3,
-      "ocs_reuses": 87,
+      "ocs_reuses": 60,
       "ocs_evictions": 0
     },
     {
       "name": "ocs_beta",
       "label": "OCS beta  (T_reconfig=50us, MEMS)",
       "config": "configs/ocs_beta_model.yaml",
-      "total_event_us": 287261,
-      "comm_us": 24936,
-      "route_us": 262325,
+      "total_event_us": 293922,
+      "comm_us": 24358,
+      "route_us": 269564,
       "ocs_enabled": true,
       "ocs_cost_model": "fixed_delay",
-      "ocs_reconfig_total_us": 150.0,
-      "ocs_establishes": 3,
-      "ocs_reuses": 87,
-      "ocs_evictions": 0
+      "ocs_circuit_budget": 1,
+      "ocs_reconfig_total_us": 3000.0,
+      "ocs_establishes": 60,
+      "ocs_reuses": 1,
+      "ocs_evictions": 59
     }
   ]
 }

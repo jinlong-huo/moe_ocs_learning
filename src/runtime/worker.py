@@ -156,11 +156,17 @@ def worker(
     affinity_tracker = None
     if ocs_cfg.get("enabled", False):
         cost_model = ocs_cfg.get("cost_model", "lru")
+        if cost_model == "fixed_delay":
+            # None = full fan-out (world_size-1 circuits); explicit value =
+            # per-rank circuit budget (ports/wavelengths).
+            max_circuits = ocs_cfg.get("max_circuits")
+        else:
+            max_circuits = ocs_cfg.get("max_circuits", 32)
         ocs_topology = OcsTopology(
             OcsTopologyConfig(
                 enabled=True,
                 cost_model=cost_model,
-                max_circuits=ocs_cfg.get("max_circuits", 32),
+                max_circuits=max_circuits,
                 reconfig_time_us=ocs_cfg.get("reconfig_time_us", 50.0),
                 circuit_latency_us=ocs_cfg.get("circuit_latency_us", 1.0),
                 circuit_bandwidth_gbps=ocs_cfg.get("circuit_bandwidth_gbps", 200.0),
@@ -174,9 +180,10 @@ def worker(
         )
         ocs_pool = ocs_topology.pool
         if cost_model == "fixed_delay":
+            budget = ocs_pool.max_circuits
             log(rank, f"OCS fixed_delay: EPS tier cost + "
-                f"{ocs_cfg.get('reconfig_time_us', 50.0)}us per circuit switch "
-                f"(eps_topology={'on' if topology is not None else 'off'})")
+                f"{ocs_cfg.get('reconfig_time_us', 50.0)}us per circuit switch, "
+                f"circuit budget={budget} (eps_topology={'on' if topology is not None else 'off'})")
         else:
             log(rank, f"OCS LRU: {ocs_cfg['max_circuits']} max circuits, "
                 f"{ocs_cfg['reconfig_time_us']}us reconfig, "

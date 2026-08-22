@@ -34,7 +34,9 @@ class OcsTopologyConfig:
         cost_model: "fixed_delay" (EPS + fixed reconfig per switch, the
                     field-standard comparable model) or "lru" (legacy
                     finite circuit cache with eviction)
-        max_circuits: maximum simultaneous optical circuits per rank (LRU only)
+        max_circuits: maximum simultaneous optical circuits per rank
+                      (LRU: cache size; fixed_delay: per-rank circuit
+                      budget in ports/wavelengths, None = full fan-out)
         reconfig_time_us: circuit establishment time. alpha model ≈ 1 us
                           (fast switch: SOA / ring-resonator class);
                           beta model ≈ 50 us (MEMS beam-steering class)
@@ -84,6 +86,9 @@ class OcsTopology:
                     topology=eps_topology,
                     flat_delay_us=flat_delay_us,
                     world_size=world_size,
+                    # None = full fan-out (world_size-1); explicit value =
+                    # per-rank circuit budget (ports/wavelengths).
+                    max_circuits=config.max_circuits,
                 )
             elif config.cost_model == "lru":
                 self.pool = OcsCircuitPool(

@@ -127,23 +127,32 @@ sequential baseline in `session_report.json`.
 
 **Claim.** OCS should be simulated the way the field does it: every transfer
 pays the same tier-aware EPS cost as the electrical baseline, plus a *fixed*
-reconfiguration delay once per newly established circuit — no finite circuit
-cache, no LRU eviction:
+reconfiguration delay once per newly established circuit — no LRU circuit
+cache. Authenticity additionally requires the **circuit budget**: a real
+switch has finite ports/wavelengths, so each rank holds at most
+`max_circuits` simultaneous circuits; when the budget is exhausted the
+oldest circuit is reassigned (FIFO port reassignment) and pays T_reconfig:
 
 ```
 T_ocs(src, dst, bytes) = T_eps(src, dst, bytes) + T_reconfig × N_switches
 ```
 
 Two canonical fixed-delay parameterizations ("alpha" and "beta" models):
-alpha = fast switch class (SOA / ring-resonator, T_reconfig ≈ 1 µs);
-beta = MEMS beam-steering class (T_reconfig ≈ 50 µs). The EPS fabric itself
-uses field-cited numbers (NVLink/NVSwitch ~1 µs/900 GB/s, InfiniBand NDR
+alpha = fast switch class (SOA / ring-resonator, ns–µs reconfig,
+T_reconfig ≈ 1 µs) with full fan-out (one circuit per destination, WSS);
+beta = 3D-MEMS beam-steering (tens of µs mechanical motion + damping,
+T_reconfig ≈ 50 µs) with a single outgoing port — the port-limited switch
+serially re-points per destination, the authentic source of OCS
+reconfiguration pressure on all-to-all traffic. The EPS fabric itself uses
+field-cited numbers (NVLink/NVSwitch ~1 µs/900 GB/s, InfiniBand NDR
 ~3 µs/400 Gb/s, core fabric ~10 µs/200 Gb/s).
 
 **Evidence.** `scripts/compare_ocs_models.py` runs EPS, alpha, and beta on
-the same 2×2×1 fabric with real Qwen weights + captured routing; the report
-(`outputs/ocs_model_comparison.json`) shows comm time, reconfig totals
-(3 switches per rank), reuse counts, and zero evictions. The legacy LRU
+the same 2×2×1 fabric with real Qwen weights + captured routing (report:
+`outputs/ocs_model_comparison.json`). Reference run: EPS comm 22.1 ms;
+alpha +3.4 ms (reconfig 3 µs total, full fan-out); beta +2.3 ms (reconfig
+3000 µs over 60 switches, 59 port reassignments — dispatch + gather each
+re-point the single MEMS port per target per micro-batch). The legacy LRU
 cache model remains available as `ocs.cost_model: lru` for backward
 compatibility only.
 

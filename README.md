@@ -87,13 +87,22 @@ T_ocs(src, dst, bytes) = T_eps(src, dst, bytes) + T_reconfig × N_switches
   900 GB/s, InfiniBand NDR ~3 µs / 400 Gb/s, core fabric ~10 µs / 200 Gb/s.
 - **OCS fixed-delay** (`ocs.cost_model: fixed_delay`): every transfer pays
   the identical tier-aware EPS cost, plus a *fixed* reconfiguration delay
-  once per newly established circuit. No capacity limit, no LRU, no
-  eviction — the switch holds all rank pairs.
-- **alpha / beta models** — the two canonical fixed-delay parameterizations:
-  | model | switch class | `T_reconfig` |
-  | ----- | ------------ | ------------ |
-  | alpha | SOA / ring-resonator (fast) | 1 µs |
-  | beta  | MEMS beam-steering | 50 µs |
+  once per newly established circuit. No LRU cache — instead a **per-rank
+  circuit budget** (`max_circuits` = ports/wavelengths); when the budget is
+  exhausted the oldest circuit is reassigned (FIFO port reassignment) and
+  pays `T_reconfig`. This is what makes OCS honestly expensive on
+  all-to-all traffic: a port-limited switch must serially re-point per
+  destination.
+- **alpha / beta models** — the two canonical fixed-delay parameterizations
+  (reconfig times follow the switch-technology literature: SOA/ring
+  ns–µs cf. [Sirius](https://dlnext.acm.org/doi/epdf/10.1145/3387514.3406221);
+  3D-MEMS tens of µs mechanical motion plus damping, deployed
+  Apollo/Palomar-class systems settle in the ms range):
+
+  | model | switch class | `T_reconfig` | circuit budget |
+  | ----- | ------------ | ------------ | -------------- |
+  | alpha | SOA / ring-resonator (fast, WSS fan-out) | 1 µs | world_size−1 |
+  | beta  | 3D-MEMS beam-steering (port-limited) | 50 µs | 1 |
 
 ```bash
 python3 -m src.launcher --config configs/qwen_eps_baseline.yaml   # authentic EPS
@@ -103,8 +112,8 @@ python3 scripts/compare_ocs_models.py    # runs all three on the same fabric + t
 ```
 
 The reconfig delay is *actually paid* (slept) on the cold path, so the
-comparison is honest end-to-end; `logs` of the runs record reconfig totals
-and per-rank reuse/establish counts in the trace metadata.
+comparison is honest end-to-end; run traces record reconfig totals,
+reuse/establish counts, and port reassignments in the trace metadata.
 
 ### OCS Preset: Captured Affinity → Inference Pre-Configuration
 

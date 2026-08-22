@@ -206,6 +206,11 @@ class Transport:
 
         Returns total reconfiguration time incurred (microseconds).
         Returns 0.0 if OCS is disabled or all circuits were already hot.
+
+        Circuit-budget aware: pre-warming fills the available per-rank
+        circuit budget only. When the switch is port-limited (e.g., a
+        single-port MEMS), targets beyond the budget reconfigure at
+        transfer time instead of being churned here and again at use.
         """
         if self.ocs_circuit_pool is None:
             return 0.0
@@ -215,6 +220,12 @@ class Transport:
         for dst in target_ranks:
             if dst == self.rank:
                 continue
+            if self.ocs_circuit_pool.is_established(self.rank, dst):
+                continue
+            # Port-limited switch: keep the remaining budget for the transfer
+            # phase rather than churning circuits that cannot all stay up.
+            if self.ocs_circuit_pool.active_circuit_count >= self.ocs_circuit_pool.max_circuits:
+                break
             reconfig = self.ocs_circuit_pool.establish(self.rank, dst, current_ns)
             total_reconfig += reconfig
         if total_reconfig > 0:
