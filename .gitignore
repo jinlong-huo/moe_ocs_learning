@@ -51,3 +51,4 @@ venv/
 
 # Local AI tool session state (not repo content)
 .codewhale/
+outputs/ocs_model_comparison_traces/

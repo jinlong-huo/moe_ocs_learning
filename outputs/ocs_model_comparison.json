@@ -1,0 +1,54 @@
+{
+  "experiment": "eps_vs_ocs_fixed_delay",
+  "fabric": "2 pods x 2 nodes x 1 rank; NVLink 1us/900GB/s, NDR 3us/400Gb/s, core 10us/200Gb/s",
+  "cost_models": {
+    "eps": "tier-aware electrical packet switching",
+    "ocs": "T_ocs = T_eps + T_reconfig x N_switches (fixed delay, no LRU, no eviction)",
+    "alpha": "T_reconfig = 1 us (SOA / ring-resonator class)",
+    "beta": "T_reconfig = 50 us (MEMS beam-steering class)"
+  },
+  "models": [
+    {
+      "name": "eps_baseline",
+      "label": "EPS baseline",
+      "config": "configs/qwen_eps_baseline.yaml",
+      "total_event_us": 322866,
+      "comm_us": 23962,
+      "route_us": 298904,
+      "ocs_enabled": false,
+      "ocs_cost_model": "lru",
+      "ocs_reconfig_total_us": 0.0,
+      "ocs_establishes": 0,
+      "ocs_reuses": 0,
+      "ocs_evictions": 0
+    },
+    {
+      "name": "ocs_alpha",
+      "label": "OCS alpha (T_reconfig=1us, fast switch)",
+      "config": "configs/ocs_alpha_model.yaml",
+      "total_event_us": 417792,
+      "comm_us": 22911,
+      "route_us": 394881,
+      "ocs_enabled": true,
+      "ocs_cost_model": "fixed_delay",
+      "ocs_reconfig_total_us": 3.0,
+      "ocs_establishes": 3,
+      "ocs_reuses": 87,
+      "ocs_evictions": 0
+    },
+    {
+      "name": "ocs_beta",
+      "label": "OCS beta  (T_reconfig=50us, MEMS)",
+      "config": "configs/ocs_beta_model.yaml",
+      "total_event_us": 287261,
+      "comm_us": 24936,
+      "route_us": 262325,
+      "ocs_enabled": true,
+      "ocs_cost_model": "fixed_delay",
+      "ocs_reconfig_total_us": 150.0,
+      "ocs_establishes": 3,
+      "ocs_reuses": 87,
+      "ocs_evictions": 0
+    }
+  ]
+}

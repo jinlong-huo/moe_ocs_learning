@@ -43,10 +43,17 @@ class LinkTier(IntEnum):
 class TopologyConfig:
     """Configuration for hierarchical network topology.
 
-    Realistic defaults (can be overridden via YAML):
-      - NVLink:    1 us latency, 900 GB/s
-      - IB:        3 us latency, 200 GB/s
-      - Cross-pod: 10 us latency, 100 GB/s
+    Authentic field numbers (the EPS baseline must be believable to the
+    networking community):
+      - Intra-node: NVLink 4 / NVSwitch — ~1 us, 900 GB/s switch bandwidth
+        (NVIDIA DGX H100: 900 GB/s aggregated NVSwitch bisection)
+      - Intra-pod: InfiniBand NDR — ~3 us switch hop, 400 Gb/s per port
+        (Mellanox NDR 400Gb/s, ~1-3 us port-to-port)
+      - Cross-pod: spine/core fabric — ~10 us, 200 Gb/s per port
+        (aggregated core-switch hop; 100-400 Gb/s in deployed fabrics)
+
+    Delay = latency + tensor_bytes / (bandwidth_gbps × 1000 bytes/us).
+    All values are overridable in YAML.
     """
     num_pods: int = 1
     nodes_per_pod: int = 1
@@ -59,8 +66,8 @@ class TopologyConfig:
 
     # Per-tier bandwidth in GB/s (used for byte-dependent delay)
     intra_node_bandwidth_gbps: float = 900.0
-    intra_pod_bandwidth_gbps: float = 200.0
-    cross_pod_bandwidth_gbps: float = 100.0
+    intra_pod_bandwidth_gbps: float = 400.0
+    cross_pod_bandwidth_gbps: float = 200.0
 
     # Multiplier applied to all delays (for scaling experiments)
     delay_multiplier: float = 1.0

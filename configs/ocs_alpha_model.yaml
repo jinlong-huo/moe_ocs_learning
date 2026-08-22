@@ -1,0 +1,37 @@
+# OCS alpha model — fixed-delay cost model, fast switch class.
+#
+# Field-standard OCS simulation: every transfer pays the SAME tier-aware EPS
+# cost as the electrical baseline, plus a FIXED reconfiguration delay once
+# per newly established circuit (no LRU, no eviction — capacity unlimited):
+#
+#   T_ocs = T_eps(src, dst, bytes) + T_reconfig × N_switches
+#
+# alpha = fast optical switch technology (SOA / ring-resonator class),
+# T_reconfig ≈ 1 us. Same 2×2×1 fabric as configs/qwen_eps_baseline.yaml so
+# the two are directly comparable.
+#
+#   python3 scripts/compare_ocs_models.py   # EPS vs alpha vs beta table
+
+extends: qwen_ocs_base
+
+topology:
+  enabled: true
+  num_pods: 2
+  nodes_per_pod: 2
+  ranks_per_node: 1
+  intra_node_latency_us: 1.0
+  intra_pod_latency_us: 3.0
+  cross_pod_latency_us: 10.0
+  intra_node_bandwidth_gbps: 900.0
+  intra_pod_bandwidth_gbps: 400.0
+  cross_pod_bandwidth_gbps: 200.0
+
+ocs:
+  enabled: true
+  cost_model: fixed_delay     # EPS tier cost + fixed reconfig per switch
+  reconfig_time_us: 1.0       # alpha: SOA / ring-resonator class (~ns-us)
+  max_circuits: 16            # unused by fixed_delay (unlimited capacity)
+
+runtime:
+  mode: "ocs_pipeline"        # runtime reconfig, paid inline before scatter
+  num_steps: 5

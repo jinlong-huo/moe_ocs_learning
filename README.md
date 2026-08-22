@@ -2,10 +2,6 @@
 
 A **Mixture of Experts (MoE)** testbed — expert parallelism, all-to-all dispatch, async overlap pipelining, and **Optical Circuit Switching (OCS)** — driven entirely by **real Qwen MoE models**: real weights, real captured routing, real vLLM/MLX serving.
 
-> The synthetic toy-expert testbed (synthetic models, datasets, training) was
-> removed; the pipeline now runs only on real Qwen weights + captured routing.
-> The removed content remains recoverable in git history.
-
 ## Quick Start
 
 ```bash
@@ -53,35 +49,73 @@ testbed replays exactly what the real model did.
 
 `[token | local_expert_id | original_index]` float columns travel through `all_to_all_single` — zero extra communication rounds. Async overlap: scatter/gather fire with `async_op=True`, wait when needed (NCCL CUDA-stream pattern).
 
-### Network Topology (3-tier)
+### Network Topology (3-tier) — the authentic EPS fabric
 
-| Tier | Link | Latency | Bandwidth |
-| ---- | ---- | ------- | --------- |
-| INTRA_NODE | NVLink/NVSwitch | ~2 µs | 600 GB/s |
-| INTRA_POD | InfiniBand | ~5 µs | 200 GB/s |
-| CROSS_POD | IB fabric | ~15 µs | 100 GB/s |
+Field-cited numbers (NVIDIA DGX/NVSwitch, Mellanox NDR, core fabrics):
 
-Delay = `latency + tensor_bytes / (bandwidth_gbps × 1000)`. Configurable in YAML (`configs/ocs_affinity_placement.yaml` enables a 2×4×4 fabric).
+| Tier       | Link            | Latency | Bandwidth |
+| ---------- | --------------- | ------- | --------- |
+| INTRA_NODE | NVLink/NVSwitch | ~1 µs   | 900 GB/s  |
+| INTRA_POD  | InfiniBand NDR  | ~3 µs   | 400 Gb/s  |
+| CROSS_POD  | core fabric     | ~10 µs  | 200 Gb/s  |
+
+Delay = `latency + tensor_bytes / (bandwidth_gbps × 1000)`. Configurable in YAML (`configs/qwen_eps_baseline.yaml` enables the 2×2×1 fabric used for EPS/OCS comparison).
 
 ### OCS Circuit Pool
 
-| | EPS | OCS |
-| - | --- | --- |
-| **Connection** | Always-on, per-packet routed | Finite pool of reconfigurable circuits |
-| **Setup cost** | None | `reconfig_time_us` when cold (mirror steering) |
-| **Once established** | N/A | `circuit_latency_us` + bytes/BW |
-| **Capacity** | Unlimited | `max_circuits` pool, LRU eviction |
+The **legacy** finite circuit-cache model (optional, `ocs.cost_model: lru`):
+
+|                            | EPS                          | OCS (LRU pool)                                   |
+| -------------------------- | ---------------------------- | ------------------------------------------------ |
+| **Connection**       | Always-on, per-packet routed | Finite pool of reconfigurable circuits           |
+| **Setup cost**       | None                         | `reconfig_time_us` when cold (mirror steering) |
+| **Once established** | N/A                          | `circuit_latency_us` + bytes/BW                |
+| **Capacity**         | Unlimited                    | `max_circuits` pool, LRU eviction              |
+
+### EPS vs OCS Cost Models (authentic comparison)
+
+The LRU pool above is *not* how most OCS studies model the switch — it makes
+OCS hard to compare against EPS. The field-standard formulation used in this
+repo (default for the comparison configs):
+
+```
+T_ocs(src, dst, bytes) = T_eps(src, dst, bytes) + T_reconfig × N_switches
+```
+
+- **Authentic EPS**: the same 3-tier fabric cost every model pays, with
+  field-cited numbers (see `src/comm/topology.py`): NVLink/NVSwitch ~1 µs /
+  900 GB/s, InfiniBand NDR ~3 µs / 400 Gb/s, core fabric ~10 µs / 200 Gb/s.
+- **OCS fixed-delay** (`ocs.cost_model: fixed_delay`): every transfer pays
+  the identical tier-aware EPS cost, plus a *fixed* reconfiguration delay
+  once per newly established circuit. No capacity limit, no LRU, no
+  eviction — the switch holds all rank pairs.
+- **alpha / beta models** — the two canonical fixed-delay parameterizations:
+  | model | switch class | `T_reconfig` |
+  | ----- | ------------ | ------------ |
+  | alpha | SOA / ring-resonator (fast) | 1 µs |
+  | beta  | MEMS beam-steering | 50 µs |
+
+```bash
+python3 -m src.launcher --config configs/qwen_eps_baseline.yaml   # authentic EPS
+python3 -m src.launcher --config configs/ocs_alpha_model.yaml     # OCS alpha
+python3 -m src.launcher --config configs/ocs_beta_model.yaml      # OCS beta
+python3 scripts/compare_ocs_models.py    # runs all three on the same fabric + table
+```
+
+The reconfig delay is *actually paid* (slept) on the cold path, so the
+comparison is honest end-to-end; `logs` of the runs record reconfig totals
+and per-rank reuse/establish counts in the trace metadata.
 
 ### OCS Preset: Captured Affinity → Inference Pre-Configuration
 
 Core question: can **captured routing patterns** pre-configure OCS circuits before inference begins, for zero runtime reconfig?
 
-| Mode | Reconfig | Circuits established | Use case |
-| ---- | -------- | -------------------- | -------- |
-| `ocs_pipeline` | Per-microbatch, inline | Before each scatter | Runtime adaptability |
-| `ocs_dbo` | Hidden behind compute | Batch K+1 during batch K | Mask reconfig latency |
-| `ocs_preset` | **None during inference** | **Before first token** | Captured-affinity → inference pre-config |
-| `ocs_online` | Adaptive, amortized | Per-step from accumulated affinity | Inference-self-learning |
+| Mode             | Reconfig                        | Circuits established               | Use case                                  |
+| ---------------- | ------------------------------- | ---------------------------------- | ----------------------------------------- |
+| `ocs_pipeline` | Per-microbatch, inline          | Before each scatter                | Runtime adaptability                      |
+| `ocs_dbo`      | Hidden behind compute           | Batch K+1 during batch K           | Mask reconfig latency                     |
+| `ocs_preset`   | **None during inference** | **Before first token**       | Captured-affinity → inference pre-config |
+| `ocs_online`   | Adaptive, amortized             | Per-step from accumulated affinity | Inference-self-learning                   |
 
 ```bash
 bash scripts/run_preset_pipeline.sh data/routing_traces/routing.json   # trace → plan → EPS/OCS/preset → compare
@@ -185,11 +219,11 @@ python scripts/compare_model_affinity.py \
 
 **Results (Qwen1.5-MoE-A2.7B 60e vs Qwen3.6-35B-A3B 256e):**
 
-| Check | Holding fixed | Varied | Result | Verdict |
-| ----- | ------------- | ------ | ------ | ------- |
-| Phase 1 | weights, trace | topology config (1×1×32 → 4×2×4) + expert/rank placement | affinity + plan bit-identical; only dispatch cost moves | topology/placement-independent ✓ |
-| Phase 2 | weights, prompt, greedy | engine (MLX vs vLLM-metal) | prefill overlap 0.933, JS 1.1e-4, corr 0.998, plan hit-rate 1.0 | hardware-independent (up to noise floor) ✓ |
-| Phase 3 | prompt, backend | model (60e vs 256e) | top-5 share 0.101→0.043, layer-JS 0.123→0.677, affinity 16× weaker | model-specific ✓ |
+| Check   | Holding fixed           | Varied                                                        | Result                                                                | Verdict                                     |
+| ------- | ----------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------- |
+| Phase 1 | weights, trace          | topology config (1×1×32 → 4×2×4) + expert/rank placement | affinity + plan bit-identical; only dispatch cost moves               | topology/placement-independent ✓           |
+| Phase 2 | weights, prompt, greedy | engine (MLX vs vLLM-metal)                                    | prefill overlap 0.933, JS 1.1e-4, corr 0.998, plan hit-rate 1.0       | hardware-independent (up to noise floor) ✓ |
+| Phase 3 | prompt, backend         | model (60e vs 256e)                                           | top-5 share 0.101→0.043, layer-JS 0.123→0.677, affinity 16× weaker | model-specific ✓                           |
 
 Conclusion: **affinity = f(input, weights)** — input-driven divergence is
 meaningful, hardware/topology/placement is not, and OCS presets must be
@@ -311,26 +345,27 @@ moe_mlx_learning.history.bundle   Pre-merge git history archive (undo path)
 
 ## Configuration Reference
 
-| Parameter | Description | Default |
-| --------- | ----------- | ------- |
-| `world_size` | Number of ranks | 4 |
-| `model.num_experts` | Total experts (= world_size × experts_per_rank) | 32 |
-| `model.experts_per_rank` | Experts per GPU | 8 |
-| `model.hidden_dim` | Qwen dequantized hidden dim | 2048 |
-| `model.top_k` | Top-K gating | 2 |
-| `routing.strategy` | `replay` (captured routing) | `fixed` |
-| `placement.strategy` | Expert→rank table: `linear`, `shuffle`, `affinity`, `permutation` | `linear` |
-| `placement.trace_path` | Routing trace for the `affinity` strategy | `data/routing_traces/routing.json` |
-| `placement.rank_locations` | Explicit rank→(pod, node, local) table for the topology model | none (linear) |
-| `runtime.mode` | `serial`, `overlap`, `ocs_pipeline`, `ocs_dbo`, `ocs_preset`, `ocs_online` | `serial` |
-| `ocs.enabled` | Enable OCS circuit pool | false |
-| `ocs.max_circuits` | Max simultaneous optical circuits | 32 |
-| `ocs.reconfig_time_us` | Circuit reconfig time (mirror steering) | 50.0 |
-| `ocs.circuit_latency_us` | Hot-path latency | 1.0 |
-| `ocs.circuit_bandwidth_gbps` | Circuit bandwidth | 200.0 |
-| `ocs.preset.strategy` | Plan computation: `coactivation` | `coactivation` |
-| `ocs.online.update_interval_steps` | Recompute plan every N steps | 1 |
-| `ocs.online.decay_factor` | Exponential decay per step | 0.99 |
+| Parameter                            | Description                                                                            | Default                              |
+| ------------------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------ |
+| `world_size`                       | Number of ranks                                                                        | 4                                    |
+| `model.num_experts`                | Total experts (= world_size × experts_per_rank)                                       | 32                                   |
+| `model.experts_per_rank`           | Experts per GPU                                                                        | 8                                    |
+| `model.hidden_dim`                 | Qwen dequantized hidden dim                                                            | 2048                                 |
+| `model.top_k`                      | Top-K gating                                                                           | 2                                    |
+| `routing.strategy`                 | `replay` (captured routing)                                                          | `fixed`                            |
+| `placement.strategy`               | Expert→rank table:`linear`, `shuffle`, `affinity`, `permutation`              | `linear`                           |
+| `placement.trace_path`             | Routing trace for the`affinity` strategy                                             | `data/routing_traces/routing.json` |
+| `placement.rank_locations`         | Explicit rank→(pod, node, local) table for the topology model                         | none (linear)                        |
+| `runtime.mode`                     | `serial`, `overlap`, `ocs_pipeline`, `ocs_dbo`, `ocs_preset`, `ocs_online` | `serial`                           |
+| `ocs.enabled`                      | Enable OCS circuit pool                                                                | false                                |
+| `ocs.cost_model`                   | `fixed_delay` (EPS + fixed reconfig per switch, field-standard) or `lru` (legacy cache) | `lru`                              |
+| `ocs.max_circuits`                 | Max simultaneous optical circuits (LRU model only)                                     | 32                                   |
+| `ocs.reconfig_time_us`             | Fixed circuit reconfig time — alpha 1 µs (fast switch), beta 50 µs (MEMS)              | 50.0                                 |
+| `ocs.circuit_latency_us`           | Hot-path latency                                                                       | 1.0                                  |
+| `ocs.circuit_bandwidth_gbps`       | Circuit bandwidth                                                                      | 200.0                                |
+| `ocs.preset.strategy`              | Plan computation:`coactivation`                                                      | `coactivation`                     |
+| `ocs.online.update_interval_steps` | Recompute plan every N steps                                                           | 1                                    |
+| `ocs.online.decay_factor`          | Exponential decay per step                                                             | 0.99                                 |
 
 ## Viewing Results
 

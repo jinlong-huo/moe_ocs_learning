@@ -133,8 +133,8 @@ def worker(
             intra_pod_latency_us=topo_cfg.get("intra_pod_latency_us", 3.0),
             cross_pod_latency_us=topo_cfg.get("cross_pod_latency_us", 10.0),
             intra_node_bandwidth_gbps=topo_cfg.get("intra_node_bandwidth_gbps", 900.0),
-            intra_pod_bandwidth_gbps=topo_cfg.get("intra_pod_bandwidth_gbps", 200.0),
-            cross_pod_bandwidth_gbps=topo_cfg.get("cross_pod_bandwidth_gbps", 100.0),
+            intra_pod_bandwidth_gbps=topo_cfg.get("intra_pod_bandwidth_gbps", 400.0),
+            cross_pod_bandwidth_gbps=topo_cfg.get("cross_pod_bandwidth_gbps", 200.0),
             delay_multiplier=topo_cfg.get("delay_multiplier", 1.0),
             # Rank -> physical location comes from the SAME placement object
             # that owns expert -> rank (single source of truth).
@@ -155,18 +155,32 @@ def worker(
     ocs_pool = None
     affinity_tracker = None
     if ocs_cfg.get("enabled", False):
-        ocs_topology = OcsTopology(OcsTopologyConfig(
-            enabled=True,
-            max_circuits=ocs_cfg.get("max_circuits", 32),
-            reconfig_time_us=ocs_cfg.get("reconfig_time_us", 50.0),
-            circuit_latency_us=ocs_cfg.get("circuit_latency_us", 1.0),
-            circuit_bandwidth_gbps=ocs_cfg.get("circuit_bandwidth_gbps", 200.0),
-            placement_strategy=ocs_cfg.get("placement_strategy", "round_robin"),
-        ))
+        cost_model = ocs_cfg.get("cost_model", "lru")
+        ocs_topology = OcsTopology(
+            OcsTopologyConfig(
+                enabled=True,
+                cost_model=cost_model,
+                max_circuits=ocs_cfg.get("max_circuits", 32),
+                reconfig_time_us=ocs_cfg.get("reconfig_time_us", 50.0),
+                circuit_latency_us=ocs_cfg.get("circuit_latency_us", 1.0),
+                circuit_bandwidth_gbps=ocs_cfg.get("circuit_bandwidth_gbps", 200.0),
+                placement_strategy=ocs_cfg.get("placement_strategy", "round_robin"),
+            ),
+            # The fixed_delay model layers the fixed reconfig delay on top of
+            # the SAME tier-aware EPS cost the electrical baseline pays.
+            eps_topology=topology,
+            flat_delay_us=delay_cfg.get("comm_delay_us", 0.0),
+            world_size=world_size,
+        )
         ocs_pool = ocs_topology.pool
-        log(rank, f"OCS: {ocs_cfg['max_circuits']} max circuits, "
-            f"{ocs_cfg['reconfig_time_us']}us reconfig, "
-            f"{ocs_cfg['circuit_bandwidth_gbps']}Gbps BW")
+        if cost_model == "fixed_delay":
+            log(rank, f"OCS fixed_delay: EPS tier cost + "
+                f"{ocs_cfg.get('reconfig_time_us', 50.0)}us per circuit switch "
+                f"(eps_topology={'on' if topology is not None else 'off'})")
+        else:
+            log(rank, f"OCS LRU: {ocs_cfg['max_circuits']} max circuits, "
+                f"{ocs_cfg['reconfig_time_us']}us reconfig, "
+                f"{ocs_cfg['circuit_bandwidth_gbps']}Gbps BW")
 
         # Build affinity tracker if using affinity placement
         if ocs_cfg.get("placement_strategy") == "affinity":
@@ -500,6 +514,7 @@ def worker(
             ocs_metrics = transport.get_ocs_metrics()
             ep_meta["ocs"] = {
                 "enabled": True,
+                "cost_model": ocs_cfg.get("cost_model", "lru"),
                 "max_circuits": ocs_cfg.get("max_circuits", 32),
                 "reconfig_time_us": ocs_cfg.get("reconfig_time_us", 50.0),
                 "circuit_latency_us": ocs_cfg.get("circuit_latency_us", 1.0),

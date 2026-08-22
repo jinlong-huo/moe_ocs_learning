@@ -197,15 +197,15 @@ class Transport:
         """Proactively establish OCS circuits to target ranks.
 
         Called by the scheduler before firing scatter for a micro-batch.
-        Circuits are established synchronously here (reconfig time is paid
-        immediately) but in ocs_dbo mode the lookahead effectively hides
-        this cost behind the previous batch's compute.
+        Circuits are established synchronously here: the reconfiguration
+        delay is *actually paid* (slept) so the OCS cost model stays honest
+        — in the fixed_delay model this is the field-standard
+        T_ocs = T_eps + T_reconfig × N_switches accounting. In ocs_dbo mode
+        the lookahead effectively hides this cost behind the previous
+        batch's compute.
 
         Returns total reconfiguration time incurred (microseconds).
         Returns 0.0 if OCS is disabled or all circuits were already hot.
-
-        Args:
-            target_ranks: list of destination rank IDs to pre-establish
         """
         if self.ocs_circuit_pool is None:
             return 0.0
@@ -217,6 +217,8 @@ class Transport:
                 continue
             reconfig = self.ocs_circuit_pool.establish(self.rank, dst, current_ns)
             total_reconfig += reconfig
+        if total_reconfig > 0:
+            time.sleep(total_reconfig / 1_000_000.0)
         return total_reconfig
 
     def get_ocs_metrics(self) -> dict:

@@ -246,3 +246,143 @@ class OcsCircuitPool:
                 "total_transfer_time_us": self.metrics.total_transfer_time_us,
             },
         }
+
+
+class FixedDelayCircuitPool:
+    """Field-standard OCS cost model: OCS = EPS tier cost + fixed reconfig.
+
+    Most OCS simulations in the literature do NOT model a finite circuit
+    cache with LRU eviction. They model the switch as: every transfer pays
+    the same tier-aware cost as the electrical baseline (EPS), and a *fixed*
+    reconfiguration delay is added once per newly established circuit:
+
+        T_ocs(src, dst, bytes) = T_eps(src, dst, bytes) + T_reconfig * [cold]
+
+    The circuit capacity is effectively unlimited (the OCS fabric can hold
+    all rank pairs), so there is no eviction and no eviction penalty —
+    making OCS directly comparable with the EPS baseline: same fabric, same
+    bytes, plus a fixed delay per circuit switch.
+
+    Two canonical parameterizations of T_reconfig are provided as configs
+    (see README "EPS vs OCS cost models"):
+      - alpha model: fast switch class (SOA / ring-resonator), T_reconfig ≈ 1 us
+      - beta  model: MEMS beam-steering class,             T_reconfig ≈ 50 us
+
+    This class exposes the same interface as OcsCircuitPool so Transport,
+    the schedulers, and the worker need no changes.
+    """
+
+    def __init__(
+        self,
+        reconfig_time_us: float,
+        topology=None,           # Topology for the EPS tier cost (may be None)
+        flat_delay_us: float = 0.0,  # EPS fallback when topology is disabled
+        world_size: int = 1,
+    ):
+        self.reconfig_time_us = reconfig_time_us
+        self.topology = topology
+        self.flat_delay_us = flat_delay_us
+        self.max_circuits = world_size * world_size  # unlimited: all rank pairs
+
+        self._circuits: set[Tuple[int, int]] = set()
+        self.metrics = OcsPoolMetrics()
+
+    # -- Query -----------------------------------------------------------
+
+    def is_established(self, src: int, dst: int) -> bool:
+        """Check if a circuit from src to dst is currently established."""
+        return (src, dst) in self._circuits
+
+    @property
+    def reuse_ratio(self) -> float:
+        """Fraction of requests satisfied by an existing circuit."""
+        if self.metrics.total_requests == 0:
+            return 0.0
+        return self.metrics.circuit_reuses / self.metrics.total_requests
+
+    @property
+    def active_circuit_count(self) -> int:
+        """Number of currently established circuits."""
+        return len(self._circuits)
+
+    # -- Circuit management -----------------------------------------------
+
+    def establish(self, src: int, dst: int, current_time_ns: int = 0) -> float:
+        """Ensure a circuit exists from src to dst.
+
+        Returns the fixed reconfiguration time incurred (microseconds):
+          0.0 if the circuit was already established (hot path),
+          reconfig_time_us otherwise (cold path). No eviction ever happens —
+          capacity is unlimited, mirroring the field-standard model.
+        """
+        key = (src, dst)
+        self.metrics.total_requests += 1
+
+        if key in self._circuits:
+            self.metrics.circuit_reuses += 1
+            return 0.0
+
+        self.metrics.circuit_establishes += 1
+        self._circuits.add(key)
+        self.metrics.total_reconfig_time_us += self.reconfig_time_us
+        return self.reconfig_time_us
+
+    def pre_config(self, plan: list, current_time_ns: int = 0) -> int:
+        """Batch-establish circuits from a pre-computed placement plan.
+
+        All plan circuits are established (no capacity cap). Used by preset
+        mode: the reconfig cost is paid before inference begins, so it does
+        not appear on the inference-time critical path.
+        """
+        established = 0
+        for src, dst, _score in plan:
+            if (src, dst) in self._circuits:
+                continue
+            self._circuits.add((src, dst))
+            self.metrics.circuit_establishes += 1
+            established += 1
+        return established
+
+    def pre_established_count(self) -> int:
+        """Preset mode: every circuit was pre-established (no per-circuit tag)."""
+        return len(self._circuits)
+
+    def compute_delay(
+        self, src: int, dst: int, tensor_bytes: int, current_time_ns: int = 0,
+    ) -> float:
+        """Total delay for a transfer over OCS from src -> dst.
+
+        EPS part: the same tier-aware pairwise cost the electrical baseline
+        pays (topology), or the flat delay when topology is disabled.
+        OCS part: the fixed reconfig delay if this circuit is cold.
+
+        Returns total delay in microseconds. Side effect: updates circuit state.
+        """
+        reconfig = self.establish(src, dst, current_time_ns)
+
+        if self.topology is not None:
+            eps_delay = self.topology.get_pairwise_delay(src, dst, tensor_bytes)
+        else:
+            eps_delay = self.flat_delay_us
+
+        self.metrics.total_transfer_time_us += eps_delay
+        return reconfig + eps_delay
+
+    # -- Snapshot (for debugging) ----------------------------------------
+
+    def snapshot(self) -> dict:
+        """Return a snapshot of current circuit state for debugging."""
+        return {
+            "cost_model": "fixed_delay",
+            "reconfig_time_us": self.reconfig_time_us,
+            "active_count": len(self._circuits),
+            "reuse_ratio": self.reuse_ratio,
+            "metrics": {
+                "total_requests": self.metrics.total_requests,
+                "circuit_reuses": self.metrics.circuit_reuses,
+                "circuit_establishes": self.metrics.circuit_establishes,
+                "circuit_evictions": self.metrics.circuit_evictions,
+                "total_reconfig_time_us": self.metrics.total_reconfig_time_us,
+                "total_transfer_time_us": self.metrics.total_transfer_time_us,
+            },
+        }

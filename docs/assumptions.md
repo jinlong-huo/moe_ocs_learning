@@ -12,6 +12,7 @@ condensed version.
 | A3 | Per-cell routing is noisy (quantized-GEMM near-ties); trust distribution-level metrics only | ⚠️ empirically established, per-cell decisions avoided | `scripts/vllm_serve.py affinity` (calibration families) | `logs/multi_tenant/run_*/affinity_report.json` |
 | A4 | Placement is a cost-side variable — recorded affinity can safely configure expert→rank and rank→location | ✅ verified (framework) | `scripts/verify_ocs_invariance.py` (§3) | `logs/ocs_invariance_report.json` (affinity_adjustment) |
 | A5 | Multi-tenant co-batching creates measurable expert contention | ✅ measured | `scripts/vllm_serve.py analyze` | `logs/multi_tenant/run_*/session_report.json` |
+| A6 | OCS cost model is field-standard: T_ocs = T_eps + T_reconfig × N_switches (fixed delay, no LRU) | ✅ implemented + comparable | `scripts/compare_ocs_models.py` | `outputs/ocs_model_comparison.json` |
 
 ---
 
@@ -121,6 +122,30 @@ TTFT/ITL growth are measurable and driven by placement/topology (cost side).
 **Evidence.** `scripts/vllm_serve.py analyze` on `logs/multi_tenant/run_burst_4t`
 (4 tenants): mean expert-collision ratio 0.747, TTFT/ITL growth vs the
 sequential baseline in `session_report.json`.
+
+## A6 — OCS cost model: fixed delay over an authentic EPS fabric
+
+**Claim.** OCS should be simulated the way the field does it: every transfer
+pays the same tier-aware EPS cost as the electrical baseline, plus a *fixed*
+reconfiguration delay once per newly established circuit — no finite circuit
+cache, no LRU eviction:
+
+```
+T_ocs(src, dst, bytes) = T_eps(src, dst, bytes) + T_reconfig × N_switches
+```
+
+Two canonical fixed-delay parameterizations ("alpha" and "beta" models):
+alpha = fast switch class (SOA / ring-resonator, T_reconfig ≈ 1 µs);
+beta = MEMS beam-steering class (T_reconfig ≈ 50 µs). The EPS fabric itself
+uses field-cited numbers (NVLink/NVSwitch ~1 µs/900 GB/s, InfiniBand NDR
+~3 µs/400 Gb/s, core fabric ~10 µs/200 Gb/s).
+
+**Evidence.** `scripts/compare_ocs_models.py` runs EPS, alpha, and beta on
+the same 2×2×1 fabric with real Qwen weights + captured routing; the report
+(`outputs/ocs_model_comparison.json`) shows comm time, reconfig totals
+(3 switches per rank), reuse counts, and zero evictions. The legacy LRU
+cache model remains available as `ocs.cost_model: lru` for backward
+compatibility only.
 
 ---
 
