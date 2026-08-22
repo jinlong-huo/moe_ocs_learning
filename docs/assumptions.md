@@ -5,14 +5,14 @@ where the verdict lives, and what is still open. Each entry is tied to one
 verification script (a "phase") with a JSON report; `README.md` has the
 condensed version.
 
-| # | Assumption | Status | Gate script | Report |
-| - | ---------- | ------ | ----------- | ------ |
-| A1 | Routing is a pure function of (input, weights) — independent of topology, node distribution, and engine | ✅ verified (framework + hardware) | `scripts/verify_ocs_invariance.py` (§1–§2), `scripts/compare_backend_traces.py` | `logs/ocs_invariance_report.json`, `logs/phase2/invariance_report.json` |
-| A2 | Affinity is model×input specific — OCS presets must be re-derived per model | ✅ verified (model level); ⚠️ quantization-level drift open | `scripts/compare_model_affinity.py` | `logs/phase3/model_diversity_report.json` |
-| A3 | Per-cell routing is noisy (quantized-GEMM near-ties); trust distribution-level metrics only | ⚠️ empirically established, per-cell decisions avoided | `scripts/vllm_serve.py affinity` (calibration families) | `logs/multi_tenant/run_*/affinity_report.json` |
-| A4 | Placement is a cost-side variable — recorded affinity can safely configure expert→rank and rank→location | ✅ verified (framework) | `scripts/verify_ocs_invariance.py` (§3) | `logs/ocs_invariance_report.json` (affinity_adjustment) |
-| A5 | Multi-tenant co-batching creates measurable expert contention | ✅ measured | `scripts/vllm_serve.py analyze` | `logs/multi_tenant/run_*/session_report.json` |
-| A6 | OCS cost model is field-standard: T_ocs = T_eps + T_reconfig × N_switches (fixed delay, no LRU) | ✅ implemented + comparable | `scripts/compare_ocs_models.py` | `outputs/ocs_model_comparison.json` |
+| #  | Assumption                                                                                                  | Status                                                        | Gate script                                                                            | Report                                                                      |
+| -- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| A1 | Routing is a pure function of (input, weights) — independent of topology, node distribution, and engine    | ✅ verified (framework + hardware)                            | `scripts/verify_ocs_invariance.py` (§1–§2), `scripts/compare_backend_traces.py` | `logs/ocs_invariance_report.json`, `logs/phase2/invariance_report.json` |
+| A2 | Affinity is model×input specific — OCS presets must be re-derived per model                               | ✅ verified (model level); ⚠️ quantization-level drift open | `scripts/compare_model_affinity.py`                                                  | `logs/phase3/model_diversity_report.json`                                 |
+| A3 | Per-cell routing is noisy (quantized-GEMM near-ties); trust distribution-level metrics only                 | ⚠️ empirically established, per-cell decisions avoided      | `scripts/vllm_serve.py affinity` (calibration families)                              | `logs/multi_tenant/run_*/affinity_report.json`                            |
+| A4 | Placement is a cost-side variable — recorded affinity can safely configure expert→rank and rank→location | ✅ verified (framework)                                       | `scripts/verify_ocs_invariance.py` (§3)                                             | `logs/ocs_invariance_report.json` (affinity_adjustment)                   |
+| A5 | Multi-tenant co-batching creates measurable expert contention                                               | ✅ measured                                                   | `scripts/vllm_serve.py analyze`                                                      | `logs/multi_tenant/run_*/session_report.json`                             |
+| A6 | OCS cost model is the field-standard alpha-beta model: T(n) = α + β·n, with α_ocs = α_eps + T_reconfig | ✅ implemented + comparable | `scripts/compare_ocs_models.py` | `outputs/ocs_model_comparison.json` |
 
 ---
 
@@ -39,7 +39,7 @@ python3 scripts/verify_ocs_invariance.py \
   only per-circuit dispatch delay moves.
 - §2 placement invariance: `Placement.linear` == historical `e//k`/`e%k`
   bit-for-bit; swap/shuffle relabel ranks without touching routing or the
-  affinity matrix; only the rank-pair plan projection changes.
+  affinity matrix; only the **rank-pair plan** projection changes.
 
 *Phase 2 (hardware, up to the noise floor).* Same 4-bit weights, same prompt,
 greedy decoding, MLX vs vLLM-metal:
@@ -127,8 +127,7 @@ sequential baseline in `session_report.json`.
 
 **Claim.** OCS should be simulated the way the field does it: every transfer
 pays the same tier-aware EPS cost as the electrical baseline, plus a *fixed*
-reconfiguration delay once per newly established circuit — no LRU circuit
-cache. Authenticity additionally requires the **circuit budget**: a real
+reconfiguration delay once per newly established circuit. Authenticity additionally requires the **circuit budget**: a real
 switch has finite ports/wavelengths, so each rank holds at most
 `max_circuits` simultaneous circuits; when the budget is exhausted the
 oldest circuit is reassigned (FIFO port reassignment) and pays T_reconfig:
@@ -152,9 +151,7 @@ the same 2×2×1 fabric with real Qwen weights + captured routing (report:
 `outputs/ocs_model_comparison.json`). Reference run: EPS comm 22.1 ms;
 alpha +3.4 ms (reconfig 3 µs total, full fan-out); beta +2.3 ms (reconfig
 3000 µs over 60 switches, 59 port reassignments — dispatch + gather each
-re-point the single MEMS port per target per micro-batch). The legacy LRU
-cache model remains available as `ocs.cost_model: lru` for backward
-compatibility only.
+re-point the single MEMS port per target per micro-batch).
 
 ---
 
@@ -164,7 +161,6 @@ compatibility only.
   (`--temp 0`), `--prefix-cache off`. The engine must never contaminate the
   trace with what it merely *executed*.
 - Every backend validates its trace before saving (`RoutingTrace.validate()`);
-  downstream stages refuse mismatched `num_experts` vs `world_size ×
-  experts_per_rank` instead of silently dropping experts.
+  downstream stages refuse mismatched `num_experts` vs `world_size × experts_per_rank` instead of silently dropping experts.
 - Each gate exits non-zero on failure and writes a JSON verdict report —
   the ledger above is reproducible by re-running the listed commands.

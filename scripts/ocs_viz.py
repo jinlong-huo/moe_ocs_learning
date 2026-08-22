@@ -169,7 +169,7 @@ def build_html(ocs_data: dict) -> str:
     </div>
     <div class="stat">
       <div class="value" style="color:#f85149">{total_evictions}</div>
-      <div class="label">LRU Evictions</div>
+      <div class="label">Port reassignments</div>
     </div>
     <div class="stat">
       <div class="value" style="color:{'#3fb950' if agg_reuse > 70 else '#d29922' if agg_reuse > 30 else '#f85149'}">{agg_reuse:.1f}%</div>

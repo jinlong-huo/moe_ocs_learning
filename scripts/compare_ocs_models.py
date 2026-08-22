@@ -11,8 +11,9 @@ table:
   - OCS beta model : T_ocs = T_eps + T_reconfig × N_switches, T_reconfig ≈ 50 us
                      (MEMS beam-steering class)
 
-Both OCS models use the fixed-delay cost model (no LRU circuit cache, no
-eviction) so every number is directly comparable with the EPS baseline.
+Both OCS models use the field-standard alpha-beta cost model
+(T_ocs = T_eps + T_reconfig x N_switches) so every number is directly
+comparable with the EPS baseline.
 
 Usage:
     python3 scripts/compare_ocs_models.py
@@ -87,8 +88,6 @@ def run_model(name: str, config: str, trace_dir: Path, verbose: bool = False) ->
         "comm_us": comm_us,
         "route_us": route_us,
         "ocs_enabled": bool(ocs_meta.get("enabled", False)),
-        "ocs_cost_model": ocs_meta.get("cost_model", "lru")
-        if isinstance(ocs_meta, dict) else "lru",
         "ocs_circuit_budget": ocs_meta.get("max_circuits", None)
         if isinstance(ocs_meta, dict) else None,
         "ocs_reconfig_total_us": ocs_metrics.get("total_reconfig_time_us", 0.0),
@@ -138,8 +137,9 @@ def main() -> int:
                   "NDR 3us/400Gb/s, core 10us/200Gb/s",
         "cost_models": {
             "eps": "tier-aware electrical packet switching",
-            "ocs": "T_ocs = T_eps + T_reconfig x N_switches (fixed delay, "
-                   "per-rank circuit budget with FIFO port reassignment)",
+            "ocs": "alpha-beta model: alpha_ocs = alpha_eps + T_reconfig "
+                   "(cold circuit), beta_ocs = beta_eps; per-rank circuit "
+                   "budget with FIFO port reassignment",
             "alpha": "T_reconfig = 1 us, full fan-out WSS (SOA / ring class)",
             "beta": "T_reconfig = 50 us, single-port MEMS beam-steering",
         },

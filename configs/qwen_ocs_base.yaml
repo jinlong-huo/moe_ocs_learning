@@ -3,7 +3,7 @@
 # This is the full research pipeline with authentic model weights:
 #   1. Real Qwen SwitchGLU experts (4096-dim hidden, 512-dim intermediate)
 #   2. Real routing traces captured from Qwen3.6-35B-A3B
-#   3. OCS circuit pool simulation (LRU eviction, reconfig overhead)
+#   3. OCS alpha-beta cost model (EPS + fixed reconfig per switch)
 #
 # Prerequisites:
 #   1. Export Qwen weights:

@@ -13,7 +13,7 @@ existing electrical fabric.
 Design
 ------
 PathResolver holds:
-  - circuit_pool (OcsCircuitPool): for OCS delay computation
+  - circuit_pool (FixedDelayCircuitPool): for OCS delay computation
   - topology (Topology | None): for per-pair EPS delay
   - flat_delay_us / flat_jitter_us: fallback when no topology
   - plan (set of (src, dst)): which rank pairs should use OCS
@@ -62,7 +62,7 @@ class PathResolver:
 
     Parameters
     ----------
-    circuit_pool : OcsCircuitPool
+    circuit_pool : FixedDelayCircuitPool
         The per-rank OCS circuit pool. Must not be None.
     topology : Topology | None
         Hierarchical topology model for per-pair EPS delays.
@@ -76,7 +76,7 @@ class PathResolver:
 
     def __init__(
         self,
-        circuit_pool,  # OcsCircuitPool
+        circuit_pool,  # FixedDelayCircuitPool
         topology=None,  # Topology | None
         plan: Optional[Set[Tuple[int, int]]] = None,
         flat_delay_us: float = 0.0,

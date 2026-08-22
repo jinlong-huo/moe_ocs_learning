@@ -8,7 +8,7 @@ Key properties:
   - Records routing decisions as they happen (same as ExpertAffinityTracker)
   - Periodically recomputes the circuit plan from accumulated affinity
   - Incrementally adjusts circuits: pre-establishes high-affinity pairs,
-    lets LRU naturally evict unused low-affinity ones
+    which then stay hot until the circuit budget reassigns their ports
   - Optional exponential decay so the system adapts to shifting patterns
   - Per-rank: each process maintains its own controller (no cross-rank sync needed
     since the router is replicated across ranks)
@@ -33,7 +33,6 @@ from typing import List, Optional
 
 import torch
 
-from src.ocs.circuit import OcsCircuitPool
 from src.ocs.placement import ExpertAffinityTracker
 
 
@@ -57,7 +56,7 @@ def _target_ranks_from_experts(
 class OnlineAffinityController:
     """Tracks expert co-activation online and adjusts OCS circuits adaptively.
 
-    Composes an ExpertAffinityTracker (for accumulation) and an OcsCircuitPool
+    Composes an ExpertAffinityTracker (for accumulation) and the OCS
     (for circuit management). Called from the scheduler each step to feed
     routing decisions and periodically recompute circuit plans.
 
@@ -65,7 +64,7 @@ class OnlineAffinityController:
     ----------
     affinity_tracker : ExpertAffinityTracker
         Pre-constructed tracker (shares the same num_experts as the model).
-    circuit_pool : OcsCircuitPool
+    circuit_pool
         The per-rank OCS circuit pool to manage.
     experts_per_rank : int
         Experts per GPU rank (for expert_id → rank mapping).
@@ -86,7 +85,7 @@ class OnlineAffinityController:
     def __init__(
         self,
         affinity_tracker: ExpertAffinityTracker,
-        circuit_pool: OcsCircuitPool,
+        circuit_pool,
         experts_per_rank: int,
         world_size: int,
         max_circuits: int = 16,
@@ -158,8 +157,8 @@ class OnlineAffinityController:
 
         Computes the top-N rank pairs by affinity score, then pre-establishes
         any that are not yet in the pool. Low-affinity circuits are NOT
-        explicitly evicted — the pool's LRU policy naturally evicts them
-        when higher-affinity circuits are established.
+        explicitly torn down — they stay established until the per-rank
+        circuit budget reassigns their ports.
 
         Args:
             current_time_ns: timestamp for circuit establishment tracking.

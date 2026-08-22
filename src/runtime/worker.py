@@ -155,39 +155,27 @@ def worker(
     ocs_pool = None
     affinity_tracker = None
     if ocs_cfg.get("enabled", False):
-        cost_model = ocs_cfg.get("cost_model", "lru")
-        if cost_model == "fixed_delay":
-            # None = full fan-out (world_size-1 circuits); explicit value =
-            # per-rank circuit budget (ports/wavelengths).
-            max_circuits = ocs_cfg.get("max_circuits")
-        else:
-            max_circuits = ocs_cfg.get("max_circuits", 32)
+        # None = full fan-out (world_size-1 circuits); explicit value =
+        # per-rank circuit budget (ports/wavelengths).
         ocs_topology = OcsTopology(
             OcsTopologyConfig(
                 enabled=True,
-                cost_model=cost_model,
-                max_circuits=max_circuits,
+                max_circuits=ocs_cfg.get("max_circuits"),
                 reconfig_time_us=ocs_cfg.get("reconfig_time_us", 50.0),
                 circuit_latency_us=ocs_cfg.get("circuit_latency_us", 1.0),
                 circuit_bandwidth_gbps=ocs_cfg.get("circuit_bandwidth_gbps", 200.0),
                 placement_strategy=ocs_cfg.get("placement_strategy", "round_robin"),
             ),
-            # The fixed_delay model layers the fixed reconfig delay on top of
-            # the SAME tier-aware EPS cost the electrical baseline pays.
+            # The alpha-beta OCS model layers the fixed reconfig delay on top
+            # of the SAME tier-aware EPS cost the electrical baseline pays.
             eps_topology=topology,
-            flat_delay_us=delay_cfg.get("comm_delay_us", 0.0),
             world_size=world_size,
         )
         ocs_pool = ocs_topology.pool
-        if cost_model == "fixed_delay":
-            budget = ocs_pool.max_circuits
-            log(rank, f"OCS fixed_delay: EPS tier cost + "
-                f"{ocs_cfg.get('reconfig_time_us', 50.0)}us per circuit switch, "
-                f"circuit budget={budget} (eps_topology={'on' if topology is not None else 'off'})")
-        else:
-            log(rank, f"OCS LRU: {ocs_cfg['max_circuits']} max circuits, "
-                f"{ocs_cfg['reconfig_time_us']}us reconfig, "
-                f"{ocs_cfg['circuit_bandwidth_gbps']}Gbps BW")
+        log(rank, f"OCS alpha-beta: alpha_ocs = alpha_eps + "
+            f"{ocs_cfg.get('reconfig_time_us', 50.0)}us (cold circuit), "
+            f"circuit budget={ocs_pool.max_circuits} "
+            f"(eps_topology={'on' if topology is not None else 'off'})")
 
         # Build affinity tracker if using affinity placement
         if ocs_cfg.get("placement_strategy") == "affinity":
@@ -521,7 +509,6 @@ def worker(
             ocs_metrics = transport.get_ocs_metrics()
             ep_meta["ocs"] = {
                 "enabled": True,
-                "cost_model": ocs_cfg.get("cost_model", "lru"),
                 "max_circuits": ocs_cfg.get("max_circuits", 32),
                 "reconfig_time_us": ocs_cfg.get("reconfig_time_us", 50.0),
                 "circuit_latency_us": ocs_cfg.get("circuit_latency_us", 1.0),

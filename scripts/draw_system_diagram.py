@@ -356,7 +356,7 @@ SLIDE_HTML = """<!DOCTYPE html>
         <div class="tp-row"><span class="k">Connection</span><span class="v">Finite circuit pool</span></div>
         <div class="tp-row"><span class="k">Setup</span><span class="v v-warn">reconfig_time (cold)</span></div>
         <div class="tp-row"><span class="k">Hot-path latency</span><span class="v v-good">1–2 µs (optical)</span></div>
-        <div class="tp-row"><span class="k">Concurrency</span><span class="v">max_circuits (LRU)</span></div>
+        <div class="tp-row"><span class="k">Concurrency</span><span class="v">max_circuits (ports)</span></div>
         <div class="tp-row"><span class="k">Best for</span><span class="v">Stable routing patterns</span></div>
       </div>
     </div>
@@ -364,7 +364,7 @@ SLIDE_HTML = """<!DOCTYPE html>
 
   <!-- ═══ 3. OCS Circuit Pool ═══ -->
   <div class="circuit-panel">
-    <div class="sec-title">OCS Circuit Pool — LRU Lifecycle</div>
+    <div class="sec-title">OCS Circuit Pool — Port Reassignment</div>
     <div class="circuit-flow">
       <div class="cstage">
         <h5>Cold Start</h5>
@@ -396,7 +396,7 @@ SLIDE_HTML = """<!DOCTYPE html>
       </div>
       <div class="carrow">→</div>
       <div class="cstage">
-        <h5>LRU Eviction</h5>
+        <h5>Port reassignment</h5>
         <div class="cslot cs-evict">
           <div class="cdot cdot-src">0</div>→<div class="cdot cdot-dst">4</div>
           &nbsp;evicted 0→2
@@ -475,7 +475,7 @@ SLIDE_HTML = """<!DOCTYPE html>
     </div>
     <div class="rb-metric">
       <div class="val" style="color:var(--green);">0</div>
-      <div class="lbl">LRU Evictions</div>
+      <div class="lbl">Port reassignments</div>
     </div>
     <div class="rb-bar-wrap">
       <div class="rb-bar-row">
@@ -698,7 +698,7 @@ DETAIL_HTML = """<!DOCTYPE html>
 
 <!-- ====== 图 3: OCS 电路池 ====== -->
 <div class="section">
-  <div class="section-title">3. OCS 电路池 LRU 驱逐机制</div>
+  <div class="section-title">3. OCS 电路池 端口重分配机制</div>
   <div class="pool-viz">
 
     <div class="pool-col">
@@ -753,7 +753,7 @@ DETAIL_HTML = """<!DOCTYPE html>
     <div style="color:#484f58;font-size:22px;display:flex;align-items:center;">→</div>
 
     <div class="pool-col">
-      <h4>Step 3: LRU 驱逐</h4>
+      <h4>Step 3: 端口重分配</h4>
       <div class="circuit-slot slot-cold" style="background:#3d1a1a;border-color:#f8514933;">
         <span class="slot-label label-src">0</span>→<span class="slot-label label-dst">4</span>
         ✗ evicted (0→2)
@@ -923,7 +923,7 @@ DETAIL_HTML = """<!DOCTYPE html>
       </div>
       <div style="background:#0d1117;border-radius:6px;padding:10px;text-align:center;">
         <div style="font-size:20px;font-weight:700;color:#3fb950;">0 次</div>
-        <div style="color:#8b949e;">LRU 驱逐</div>
+        <div style="color:#8b949e;">端口重分配</div>
         <div style="color:#484f58;">8 个槽位足够 3 条电路</div>
       </div>
     </div>

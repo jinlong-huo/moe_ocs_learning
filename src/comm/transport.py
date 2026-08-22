@@ -39,7 +39,7 @@ class Transport:
         topology=None,   # Topology instance (optional, avoids circular import)
         rank: int = 0,
         world_size: Optional[int] = None,
-        ocs_circuit_pool=None,  # OcsCircuitPool instance (optional, None disables OCS)
+        ocs_circuit_pool=None,  # FixedDelayCircuitPool instance (optional, None disables OCS)
         path_resolver=None,  # PathResolver for mixed EPS+OCS (optional)
     ):
         self.timer = timer
@@ -64,7 +64,7 @@ class Transport:
           1. Mixed EPS+OCS: uses PathResolver for per-rank-pair path decisions.
              Pairs in the OCS plan use optical circuits; others fallback to EPS
              (topology or flat). Requires path_resolver + target_ranks.
-          2. OCS-only: uses OcsCircuitPool for all pairs. Requires ocs_circuit_pool
+          2. OCS-only: uses the fixed-delay circuit pool for all pairs. Requires ocs_circuit_pool
              + target_ranks. (backward compatible)
           3. Topology-aware: uses hierarchical network model (NVLink/IB/cross-pod).
           4. Flat delay: simple fixed delay + jitter.
