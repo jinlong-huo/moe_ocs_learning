@@ -1,5 +1,4 @@
-"""Data modules: synthetic datasets and routing trace I/O for MoE OCS research."""
-from src.data.synthetic import SyntheticMixtureDataset
+"""Data modules: real-model routing trace I/O for MoE OCS research."""
 from src.data.routing_schema import (
     RoutingTrace,
     TokenRoute,
@@ -8,7 +7,6 @@ from src.data.routing_schema import (
 )
 
 __all__ = [
-    "SyntheticMixtureDataset",
     "RoutingTrace",
     "TokenRoute",
     "LayerRoute",

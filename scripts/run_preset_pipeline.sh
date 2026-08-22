@@ -1,6 +1,6 @@
 #!/bin/bash
-# End-to-end OCS preset pipeline
-# Train → capture affinity → compute plan → preset inference → compare
+# End-to-end OCS preset pipeline on real Qwen weights
+# Capture affinity → compute plan → EPS baseline → OCS runtime → OCS preset → compare
 #
 # Usage:
 #   bash scripts/run_preset_pipeline.sh
@@ -17,12 +17,11 @@ MAX_CIRCUITS="${2:-16}"
 EXPERTS_PER_RANK="${3:-4}"
 WORLD_SIZE="${4:-4}"
 OUTPUT_DIR="outputs/preset_pipeline"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "$OUTPUT_DIR"
 
 echo "============================================================"
-echo "OCS PRESET PIPELINE"
+echo "OCS PRESET PIPELINE (real Qwen weights)"
 echo "============================================================"
 echo "Trace:         $TRACE"
 echo "Max circuits:  $MAX_CIRCUITS"
@@ -58,10 +57,10 @@ python3 scripts/compute_preset_plan.py \
 echo ""
 
 # ---- Step 3A: Run EPS baseline (overlap mode, no OCS) ----
-echo "[Step 3A/4] Running EPS baseline (overlap)..."
+echo "[Step 3A/4] Running EPS baseline (overlap, real Qwen experts)..."
 EPS_TRACE_DIR="$OUTPUT_DIR/traces_eps_baseline"
 python3 -m src.launcher \
-    --config configs/compare_ocs_base.yaml \
+    --config configs/qwen_replay.yaml \
     --trace-dir "$EPS_TRACE_DIR" \
     2>&1 | tail -5
 echo ""
@@ -70,7 +69,7 @@ echo ""
 echo "[Step 3B/4] Running OCS pipeline (runtime reconfig)..."
 OCS_TRACE_DIR="$OUTPUT_DIR/traces_ocs_runtime"
 python3 -m src.launcher \
-    --config configs/compare_ocs_on.yaml \
+    --config configs/qwen_ocs_pipeline.yaml \
     --trace-dir "$OCS_TRACE_DIR" \
     2>&1 | tail -5
 echo ""
@@ -85,9 +84,9 @@ python3 -c "
 import yaml, os, sys, json
 sys.path.insert(0, '.')
 
-# Fully resolve the preset config (so extends: is inlined)
+# Fully resolve the qwen OCS base config (so extends: is inlined)
 from src.launcher import load_config
-cfg = load_config('configs/ocs_preset.yaml')
+cfg = load_config('configs/qwen_ocs_base.yaml')
 
 # Point to the computed plan
 cfg.setdefault('ocs', {})['preset'] = {
@@ -95,6 +94,7 @@ cfg.setdefault('ocs', {})['preset'] = {
     'plan_path': '$PLAN_PATH',
     'strategy': 'coactivation',
 }
+cfg['runtime'] = {'mode': 'ocs_preset', 'num_steps': 3}
 
 with open('$PRESET_CONFIG', 'w') as f:
     yaml.dump(cfg, f)

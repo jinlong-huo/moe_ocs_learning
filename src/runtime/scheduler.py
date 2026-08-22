@@ -1,15 +1,8 @@
-"""Micro-batch scheduler: serial baseline, async overlap, and OCS-aware modes.
+"""Micro-batch scheduler: EPS baselines and OCS-aware modes on real Qwen experts.
 
-Serial mode:
-  For each micro-batch i:
-    route -> scatter (blocking) -> compute -> gather (blocking) -> combine (EPS)
-
-Overlap mode:
-  Pipeline across micro-batches using double-buffering:
-    Fire scatter for batch K
-    While scatter is in-flight, compute expert for batch K-1
-    Wait for scatter K, fire gather K
-    While gather K is in-flight, fire scatter K+1 and compute K
+EPS modes (on real Qwen weights):
+  serial:   route -> scatter (blocking) -> compute -> gather (blocking) -> combine
+  overlap:  async double-buffered pipeline across micro-batches
 
 OCS Pipeline mode (ocs_pipeline):
   Extends overlap with OCS circuit pre-establishment:
@@ -22,10 +15,10 @@ OCS Dual-Batch Overlap (ocs_dbo):
   for full 3-deep pipeline effect.
 
 OCS Preset (ocs_preset):
-  Pre-establishes all OCS circuits from a training-derived plan BEFORE
+  Pre-establishes all OCS circuits from a trace-derived affinity plan BEFORE
   the first token is processed. No runtime reconfiguration occurs during
   inference — all circuits are hot from the start. Models the scenario
-  where training-time affinity patterns are used to pre-configure OCS
+  where captured affinity patterns are used to pre-configure OCS
   for inference.
 
 Top-K support:
@@ -38,26 +31,24 @@ from __future__ import annotations
 from typing import List, Tuple
 
 import torch
-import torch.distributed as dist
 
-from src.model.moe_layer import MoELayer
+from src.model.qwen_experts import QwenMoELayerWrapper
 from src.comm.transport import Transport
 from src.comm.all_to_all import (
-    scatter_tokens, gather_tokens, combine_expert_outputs, DispatchResult,
+    scatter_tokens, gather_tokens, combine_expert_outputs,
 )
 from src.ocs.online_controller import _target_ranks_from_experts
-from src.train.loss import compute_loss
 from src.utils.timer import Timer
 
 
 def run_serial(
     step: int,
     microbatches: List[torch.Tensor],
-    moe: MoELayer,
+    moe: QwenMoELayerWrapper,
     transport: Transport,
     timer: Timer,
 ) -> None:
-    """Baseline: comm -> compute -> comm -> combine, no overlap."""
+    """EPS baseline: comm -> compute -> comm -> combine, no overlap."""
     for mb_idx, tokens in enumerate(microbatches):
         # Route: get expert assignments and gate weights
         timer.start(f"step/{step}/mb_{mb_idx}/route")
@@ -92,7 +83,7 @@ def run_serial(
 def run_overlap(
     step: int,
     microbatches: List[torch.Tensor],
-    moe: MoELayer,
+    moe: QwenMoELayerWrapper,
     transport: Transport,
     timer: Timer,
 ) -> None:
@@ -217,92 +208,13 @@ def run_overlap(
         timer.stop(f"step/{step}/mb_{last}/combine")
 
 
-# ── Training schedulers ────────────────────────────────────────────────
-
-
-def run_train_serial(
-    step: int,
-    microbatches: List[torch.Tensor],
-    targets: List[torch.Tensor],
-    moe: MoELayer,
-    transport: Transport,
-    optimizer: torch.optim.Optimizer,
-    timer: Timer,
-    alpha: float = 0.01,
-) -> dict:
-    """Training serial step: forward → loss → backward → optimizer.step().
-
-    Returns a metrics dict with per-microbatch breakdown.
-    """
-    mb_metrics = []
-
-    for mb_idx, (tokens, tgt) in enumerate(zip(microbatches, targets)):
-        # ── Forward ──
-        timer.start(f"step/{step}/mb_{mb_idx}/forward")
-        output, logits, send_counts, _dispatch = moe.forward_train(tokens, transport)
-        timer.stop(f"step/{step}/mb_{mb_idx}/forward")
-
-        # ── Loss ──
-        timer.start(f"step/{step}/mb_{mb_idx}/loss")
-        loss, loss_task, loss_aux = compute_loss(
-            output, tgt, logits, send_counts, moe.experts_per_rank, alpha,
-        )
-        timer.stop(f"step/{step}/mb_{mb_idx}/loss")
-
-        # ── Backward + step ──
-        timer.start(f"step/{step}/mb_{mb_idx}/backward")
-        optimizer.zero_grad()
-        loss.backward()
-        # Sync router gradients across ranks (gate is shared, experts are not)
-        sync_router_gradients(moe)
-        optimizer.step()
-        timer.stop(f"step/{step}/mb_{mb_idx}/backward")
-
-        mb_metrics.append({
-            "mb_idx": mb_idx,
-            "loss_total": loss.item(),
-            "loss_task": loss_task.item(),
-            "loss_aux": loss_aux.item(),
-        })
-
-    return {
-        "step": step,
-        "microbatches": mb_metrics,
-        "loss_total": sum(m["loss_total"] for m in mb_metrics) / len(mb_metrics),
-        "loss_task": sum(m["loss_task"] for m in mb_metrics) / len(mb_metrics),
-        "loss_aux": sum(m["loss_aux"] for m in mb_metrics) / len(mb_metrics),
-    }
-
-
-# ── Distributed training utilities ─────────────────────────────────────
-
-
-def sync_router_gradients(moe: MoELayer) -> None:
-    """All-reduce gradients for the router (shared across all ranks).
-
-    Each rank computes different router gradients because it sees different
-    expert outputs through all-to-all. Averaging ensures convergence.
-    """
-    world_size = dist.get_world_size()
-    for param in moe.router.parameters():
-        if param.grad is not None:
-            dist.all_reduce(param.grad, op=dist.ReduceOp.SUM)
-            param.grad /= world_size
-
-
-def broadcast_model_params(moe: MoELayer, src: int = 0) -> None:
-    """Broadcast all MoE parameters from src rank for identical initialization."""
-    for param in moe.parameters():
-        dist.broadcast(param.data, src=src)
-
-
 # ── OCS-aware schedulers ────────────────────────────────────────────────
 
 
 def run_ocs_pipeline(
     step: int,
     microbatches: List[torch.Tensor],
-    moe: MoELayer,
+    moe: QwenMoELayerWrapper,
     transport: Transport,
     timer: Timer,
 ) -> None:
@@ -429,7 +341,7 @@ def run_ocs_pipeline(
 def run_ocs_dbo(
     step: int,
     microbatches: List[torch.Tensor],
-    moe: MoELayer,
+    moe: QwenMoELayerWrapper,
     transport: Transport,
     timer: Timer,
 ) -> None:
@@ -575,13 +487,13 @@ def run_ocs_dbo(
 def run_ocs_preset(
     step: int,
     microbatches: List[torch.Tensor],
-    moe: MoELayer,
+    moe: QwenMoELayerWrapper,
     transport: Transport,
     timer: Timer,
 ) -> None:
     """OCS Preset: pre-established circuits, zero runtime reconfig.
 
-    Circuits are pre-established from a training-derived placement plan
+    Circuits are pre-established from a trace-derived placement plan
     BEFORE the first micro-batch. During inference, all cross-rank
     communication benefits from hot OCS circuits — no reconfig delay.
     """
@@ -678,7 +590,7 @@ def run_ocs_preset(
 def run_ocs_online(
     step: int,
     microbatches: List[torch.Tensor],
-    moe: MoELayer,
+    moe: QwenMoELayerWrapper,
     transport: Transport,
     timer: Timer,
     controller,  # OnlineAffinityController
@@ -702,7 +614,7 @@ def run_ocs_online(
     Args:
         step: current step index (0-based).
         microbatches: list of [T, H] token tensors.
-        moe: MoELayer with router.
+        moe: QwenMoELayerWrapper with router.
         transport: Transport with OCS circuit pool.
         timer: Timer for event recording.
         controller: OnlineAffinityController managing adaptive circuits.

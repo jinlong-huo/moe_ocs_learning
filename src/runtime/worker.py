@@ -3,7 +3,7 @@
 Each worker:
   1. Initializes its process group
   2. Builds the MoE layer (owning one expert)
-  3. Generates synthetic input data
+  3. Generates input activations (routing comes from the real gate / captured trace)
   4. Runs the scheduler (serial or overlap mode)
   5. Records timeline events
   6. Exports trace and metrics
@@ -15,23 +15,21 @@ from typing import Dict
 
 import torch
 
-from src.runtime.process_group import init_process_group, cleanup_process_group, get_rank
+from src.runtime.process_group import init_process_group, cleanup_process_group
 from src.runtime.scheduler import (
-    run_serial, run_overlap, run_train_serial,
+    run_serial, run_overlap,
     run_ocs_pipeline, run_ocs_dbo, run_ocs_preset,
-    run_ocs_online, broadcast_model_params,
+    run_ocs_online,
 )
 from src.ocs.online_controller import OnlineAffinityController
-from src.model.moe_layer import MoELayer
 from src.model.router_replay import ReplayRouter, LayerCyclingReplayRouter
-from src.model.qwen_experts import create_qwen_moe_layer, QwenMoELayerWrapper
+from src.model.qwen_experts import create_qwen_moe_layer
 from src.data.routing_schema import RoutingTrace
 from src.comm.transport import Transport
 from src.comm.topology import Topology, TopologyConfig
 from src.comm.path_resolver import PathResolver
 from src.ocs.topology import OcsTopology, OcsTopologyConfig
 from src.ocs.placement import ExpertAffinityTracker
-from src.train.trainer import Trainer
 from src.utils.timer import Timer
 from src.utils.logging import log, log_summary
 from src.utils.seed import set_seed
@@ -119,12 +117,8 @@ def worker(
     # Resolved once, up front: it feeds both the dispatch (expert -> rank)
     # and the topology delay model (rank -> physical location).
     experts_per_rank = model_cfg.get("experts_per_rank", 1)
-    expert_type = model_cfg.get("expert_type", "tiny")
-    # Effective expert count (Qwen may override model.num_experts)
-    if expert_type == "qwen":
-        num_experts = config.get("qwen", {}).get("num_experts", model_cfg["num_experts"])
-    else:
-        num_experts = model_cfg["num_experts"]
+    # Effective expert count (the qwen block may override model.num_experts)
+    num_experts = config.get("qwen", {}).get("num_experts", model_cfg["num_experts"])
     placement = _resolve_placement(config, num_experts, experts_per_rank, world_size)
 
     # -- Build topology (if enabled) ---------------------------------
@@ -216,40 +210,28 @@ def worker(
 
     routing_strategy = config.get("routing", {}).get("strategy", "fixed")
 
-    # ── Build model: synthetic MoELayer or real Qwen experts ────────
-    if expert_type == "qwen":
-        qwen_cfg = config.get("qwen", {})
-        weight_dir = qwen_cfg.get("weight_dir", "exported_qwen_weights/layer_0")
-        intermediate_dim = qwen_cfg.get("intermediate_dim", 512)
-        hidden_dim_override = qwen_cfg.get("hidden_dim", model_cfg["hidden_dim"])
-        num_experts_qwen = num_experts  # already resolved from the qwen override
-        top_k_qwen = qwen_cfg.get("top_k", model_cfg.get("top_k", 8))
+    # ── Build model: real Qwen MoE experts + gate ────────────────
+    qwen_cfg = config.get("qwen", {})
+    weight_dir = qwen_cfg.get("weight_dir", "exported_qwen_weights/layer_0")
+    intermediate_dim = qwen_cfg.get("intermediate_dim", 512)
+    hidden_dim_override = qwen_cfg.get("hidden_dim", model_cfg["hidden_dim"])
+    num_experts_qwen = num_experts  # already resolved from the qwen override
+    top_k_qwen = qwen_cfg.get("top_k", model_cfg.get("top_k", 8))
 
-        moe = create_qwen_moe_layer(
-            weight_dir=weight_dir,
-            rank=rank,
-            world_size=world_size,
-            experts_per_rank=experts_per_rank,
-            hidden_dim=hidden_dim_override,
-            intermediate_dim=intermediate_dim,
-            num_experts=num_experts_qwen,
-            top_k=top_k_qwen,
-            placement=placement,
-        )
-        log(rank, f"Model: Qwen experts from {weight_dir} "
-            f"dim={hidden_dim_override} intermediate={intermediate_dim} "
-            f"experts={num_experts_qwen} top_k={top_k_qwen}")
-    else:
-        moe = MoELayer(
-            hidden_dim=model_cfg["hidden_dim"],
-            num_experts=model_cfg["num_experts"],
-            top_k=model_cfg.get("top_k", 1),
-            expert_type=expert_type,
-            expert_mult=model_cfg.get("expert_hidden_mult", 4),
-            routing_strategy=routing_strategy,
-            experts_per_rank=experts_per_rank,
-        )
-        moe.set_rank(rank, world_size, placement=placement)
+    moe = create_qwen_moe_layer(
+        weight_dir=weight_dir,
+        rank=rank,
+        world_size=world_size,
+        experts_per_rank=experts_per_rank,
+        hidden_dim=hidden_dim_override,
+        intermediate_dim=intermediate_dim,
+        num_experts=num_experts_qwen,
+        top_k=top_k_qwen,
+        placement=placement,
+    )
+    log(rank, f"Model: Qwen experts from {weight_dir} "
+        f"dim={hidden_dim_override} intermediate={intermediate_dim} "
+        f"experts={num_experts_qwen} top_k={top_k_qwen}")
 
     # ── Routing-replay: replace router with captured trace ─────────
     replay_cfg = config.get("routing_replay", {})
@@ -263,30 +245,25 @@ def worker(
         if cycle:
             moe.router = LayerCyclingReplayRouter(
                 trace,
-                sim_num_experts=model_cfg["num_experts"],
-                sim_top_k=model_cfg.get("top_k", 1),
+                sim_num_experts=num_experts,
+                sim_top_k=top_k_qwen,
             )
             log(rank, f"Router: replay (cycling {trace.meta.num_moe_layers} layers) "
                 f"trace={trace_path} trace_experts={trace.meta.num_experts} "
-                f"trace_top_k={trace.meta.top_k} sim_experts={model_cfg['num_experts']}")
+                f"trace_top_k={trace.meta.top_k} sim_experts={num_experts}")
         else:
             moe.router = ReplayRouter(
                 trace,
                 layer_idx=layer_idx,
-                sim_num_experts=model_cfg["num_experts"],
-                sim_top_k=model_cfg.get("top_k", 1),
+                sim_num_experts=num_experts,
+                sim_top_k=top_k_qwen,
             )
             log(rank, f"Router: replay layer={layer_idx} trace={trace_path} "
                 f"trace_experts={trace.meta.num_experts} "
-                f"trace_top_k={trace.meta.top_k} sim_experts={model_cfg['num_experts']}")
+                f"trace_top_k={trace.meta.top_k} sim_experts={num_experts}")
 
         # Update routing strategy string in metadata
         routing_strategy = "replay" if not cycle else "replay_cycling"
-
-    # Broadcast model params to ensure identical gate weights across ranks
-    # Skip for Qwen experts which already load identical gate from disk
-    if expert_type != "qwen":
-        broadcast_model_params(moe, src=0)
 
     # ── Synthetic data ──────────────────────────────────────────
     batch_size = data_cfg["batch_size"]
@@ -306,27 +283,7 @@ def worker(
     mode = runtime_cfg.get("mode", "serial")
     num_steps = runtime_cfg.get("num_steps", 5)
 
-    if mode.startswith("train_"):
-        # ── Training mode ──
-        trainer = Trainer(
-            moe=moe,
-            transport=transport,
-            timer=timer,
-            config=config,
-            rank=rank,
-            world_size=world_size,
-            trace_dir=trace_dir,
-        )
-        trainer.train()
-
-        # Save checkpoint (rank 0 only to avoid file conflicts)
-        if rank == 0:
-            ckpt_dir = config.get("profiling", {}).get("trace_dir", "outputs/traces")
-            ckpt_path = os.path.join(ckpt_dir, "checkpoint.pt")
-            trainer.save_checkpoint(ckpt_path)
-            log(rank, f"Checkpoint saved -> {ckpt_path}")
-
-    elif mode == "serial":
+    if mode == "serial":
         for step in range(num_steps):
             run_serial(
                 step=step,
@@ -374,7 +331,7 @@ def worker(
                 timer=timer,
             )
     elif mode == "ocs_preset":
-        # Pre-load circuits from training-derived placement plan
+        # Pre-load circuits from the trace-derived placement plan
         preset_cfg = ocs_cfg.get("preset", {})
         preset_source = preset_cfg.get("source", "trace")
         if preset_source == "plan":
@@ -389,7 +346,7 @@ def worker(
                     path_resolver.set_plan_from_list(plan)
                     log(rank, f"Mixed transport: {len(plan)} plan pairs → PathResolver")
         elif preset_source == "trace" and affinity_tracker is not None:
-            # Build plan from the affinity tracker (populated during training)
+            # Build plan from the affinity tracker (populated from routing)
             for tokens in microbatches:
                 with torch.no_grad():
                     eids, gws, _ = moe.router(tokens)
@@ -424,7 +381,7 @@ def worker(
         decay_factor = online_cfg.get("decay_factor", 1.0)
 
         if affinity_tracker is None:
-            affinity_tracker = ExpertAffinityTracker(model_cfg["num_experts"])
+            affinity_tracker = ExpertAffinityTracker(num_experts)
 
         controller = OnlineAffinityController(
             affinity_tracker=affinity_tracker,
@@ -504,26 +461,24 @@ def worker(
         # Build EP metadata for the viewer
         ep_meta = {
             "world_size": world_size,
-            "num_experts": model_cfg["num_experts"],
+            "num_experts": num_experts,
             "experts_per_rank": experts_per_rank,
-            "top_k": model_cfg.get("top_k", 1),
+            "top_k": top_k_qwen,
             "routing_strategy": routing_strategy,
             "mode": mode,
             "backend": config.get("backend", "gloo"),
-            "expert_type": expert_type,
-        }
-        if expert_type == "qwen":
-            qwen_cfg = config.get("qwen", {})
-            ep_meta["qwen"] = {
+            "expert_type": "qwen",
+            "qwen": {
                 "model": "Qwen3.6-35B-A3B",
                 "source_dir": qwen_cfg.get("weight_dir", ""),
                 "hidden_dim": qwen_cfg.get("hidden_dim", 0),
                 "intermediate_dim": qwen_cfg.get("intermediate_dim", 0),
                 "experts_exported": qwen_cfg.get("num_experts", 0),
                 "top_k": qwen_cfg.get("top_k", 0),
-            }
-            if config.get("routing_replay", {}).get("enabled"):
-                ep_meta["qwen"]["routing_source"] = config.get("routing_replay", {}).get("trace_path", "")
+            },
+        }
+        if config.get("routing_replay", {}).get("enabled"):
+            ep_meta["qwen"]["routing_source"] = config.get("routing_replay", {}).get("trace_path", "")
         # Add topology info if available
         if topology is not None:
             topo_cfg = config.get("topology", {})

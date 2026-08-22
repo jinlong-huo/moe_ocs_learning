@@ -1,4 +1,4 @@
-# Qwen replay config: real Qwen MoE gate + expert weights + captured routing + OCS.
+# Qwen replay config: real Qwen MoE gate + expert weights + captured routing.
 #
 # Prerequisites:
 #   1. Export weights (first layer only, for speed):
@@ -14,7 +14,10 @@
 #   This config uses 32 experts (subset) for CPU-memory feasibility.
 #   Each rank loads 8 experts (~200MB/rank).
 
-extends: synthetic_moe
+world_size: 4
+master_addr: "127.0.0.1"
+master_port: 29500
+backend: "gloo"
 
 routing:
   strategy: "replay"          # Use captured routing from real model
@@ -29,7 +32,6 @@ model:
   num_experts: 32             # Subset of 256 for practicality (4 ranks × 8 experts/rank)
   experts_per_rank: 8
   hidden_dim: 2048            # Qwen3.6 dequantized hidden dim (unpacked from 8-bit gate.weight [256, 512]→[256, 2048])
-  expert_type: "qwen"         # Real Qwen SwitchGLU experts
   top_k: 2                    # Downsample from top-8 to top-2
 
 qwen:
@@ -50,6 +52,14 @@ ocs:
 runtime:
   mode: "overlap"
   num_steps: 3
+
+delay:
+  enabled: false
+  comm_delay_us: 0
+  comm_delay_jitter_us: 0
+
+topology:
+  enabled: false
 
 profiling:
   export_trace: true

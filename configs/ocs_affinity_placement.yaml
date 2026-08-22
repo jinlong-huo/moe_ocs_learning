@@ -1,4 +1,4 @@
-# Affinity-driven placement for OCS — the merged single story.
+# Affinity-driven placement for OCS — the merged single story, on REAL Qwen weights.
 #
 #   Step 1 (verify):  python3 scripts/verify_ocs_invariance.py
 #     Gates that affinity is independent of node distribution (placement)
@@ -7,7 +7,8 @@
 #
 #   Step 2 (apply):   python3 -m src.launcher --config configs/ocs_affinity_placement.yaml
 #     Uses the recorded affinity to configure BOTH halves of placement on a
-#     2 pod x 4 node x 4 GPU (32-rank) fabric:
+#     2 pod x 4 node x 4 GPU (32-rank) fabric with real Qwen SwitchGLU
+#     experts (256 experts, 8 per rank):
 #       - placement.strategy=affinity  : greedy co-activation clustering sets
 #         expert -> rank, so co-activated experts share a rank (compute side:
 #         more intra-rank work, less inter-rank traffic).
@@ -20,11 +21,17 @@
 # Routing never changes — only where experts live and what travel costs.
 # The OCS online controller then keeps high-affinity rank-pair circuits hot.
 
-extends: realistic_32gpu
+extends: qwen_ocs_base
+
+world_size: 32
 
 model:
   num_experts: 256         # must match the trace (world_size x experts_per_rank)
   experts_per_rank: 8
+
+qwen:
+  num_experts: 256         # all exported experts of layer 0
+  top_k: 2                 # replay downsamples the captured top-8 to top-2
 
 placement:
   strategy: affinity
@@ -63,12 +70,15 @@ placement:
     - [0, 1, 3]  # rank 30
     - [0, 1, 1]  # rank 31
 
+topology:
+  enabled: true
+  num_pods: 2
+  nodes_per_pod: 4
+  ranks_per_node: 4
+
 ocs:
   enabled: true
   max_circuits: 16
-  reconfig_time_us: 100.0
-  circuit_latency_us: 1.0
-  circuit_bandwidth_gbps: 400.0
   placement_strategy: affinity   # OCS circuit pool tracks co-activation
   online:
     update_interval_steps: 1
@@ -79,6 +89,6 @@ runtime:
   num_steps: 3
 
 data:
-  batch_size: 4
+  batch_size: 1
   seq_len: 32
   num_microbatches: 4

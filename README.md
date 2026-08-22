@@ -1,24 +1,30 @@
 # MoE + OCS Research Testbed
 
-A **Mixture of Experts (MoE)** testbed — expert parallelism, all-to-all dispatch, async overlap pipelining, and **Optical Circuit Switching (OCS)** — verified with real Qwen MoE routing before GPU-cluster deployment.
+A **Mixture of Experts (MoE)** testbed — expert parallelism, all-to-all dispatch, async overlap pipelining, and **Optical Circuit Switching (OCS)** — driven entirely by **real Qwen MoE models**: real weights, real captured routing, real vLLM/MLX serving.
+
+> The synthetic toy-expert testbed (synthetic models, datasets, training) was
+> removed; the pipeline now runs only on real Qwen weights + captured routing.
+> The removed content remains recoverable in git history.
 
 ## Quick Start
 
 ```bash
 pip install torch pyyaml
-python3 -m src.launcher --config configs/synthetic_moe.yaml
+python3 -m src.launcher --config configs/qwen_ocs_lite.yaml   # real Qwen weights + OCS, fast
 ```
 
-Three learning paths:
+The pipeline stages:
 
-- **Path 1 — MoE Basics:** expert parallelism (`expert_id → (rank, local_expert)`), top-K gate routing, the 4-phase pipeline route → scatter → compute → gather → combine.
-- **Path 2 — Overlap & Pipelining:** micro-batch pipelining, async fire-and-forget all-to-all, double buffering.
-- **Path 3 — OCS:** circuit pool (LRU `OrderedDict`), reconfig cost, OCS pipeline, dual-batch overlap (DBO), preset mode, online affinity mode.
+- **Capture** — real routing traces from Qwen MoE models (vLLM primary, MLX secondary), validated `RoutingTrace` JSON
+- **Verify** — invariance gates (topology / placement / hardware / model) before trusting recorded affinity
+- **Replay + OCS** — real Qwen SwitchGLU experts on a 3-tier fabric with OCS circuit pool: pipeline, dual-batch overlap, preset, online affinity
+- **Configure** — recorded affinity drives `expert → rank` and `rank → location` placement to cut cross-tier traffic
 
 ```bash
-python3 -m src.launcher --config configs/ocs_demo.yaml        # OCS pipeline
-python3 -m src.launcher --config configs/ocs_dbo_demo.yaml    # dual-batch overlap
-python scripts/compare_ocs.py                                  # EPS vs OCS
+python3 -m src.launcher --config configs/qwen_ocs_lite.yaml      # OCS pipeline, 8 experts
+python3 -m src.launcher --config configs/qwen_ocs_pipeline.yaml  # OCS pipeline, 32 experts
+python3 -m src.launcher --config configs/qwen_ocs_dbo.yaml       # dual-batch overlap
+python3 -m src.launcher --config configs/ocs_affinity_placement.yaml  # affinity-driven placement
 ```
 
 ## Core Concepts
@@ -39,7 +45,9 @@ The linear mapping above is the default `Placement.linear`; a `placement` config
 tokens [B×S, H] → Linear(hidden, num_experts) → softmax → topk → expert_ids [T, K] + gate_weights [T, K]
 ```
 
-Router strategies: `fixed`, `top1`, `top2`, `uniform_random`.
+The gate is the **real Qwen gate** (dequantized weights from disk); in replay
+mode it is replaced by the captured routing trace (`ReplayRouter`), so the
+testbed replays exactly what the real model did.
 
 ### All-to-All Dispatch
 
@@ -53,7 +61,7 @@ Router strategies: `fixed`, `top1`, `top2`, `uniform_random`.
 | INTRA_POD | InfiniBand | ~5 µs | 200 GB/s |
 | CROSS_POD | IB fabric | ~15 µs | 100 GB/s |
 
-Delay = `latency + tensor_bytes / (bandwidth_gbps × 1000)`. Configurable in YAML (`configs/realistic_16gpu.yaml`).
+Delay = `latency + tensor_bytes / (bandwidth_gbps × 1000)`. Configurable in YAML (`configs/ocs_affinity_placement.yaml` enables a 2×4×4 fabric).
 
 ### OCS Circuit Pool
 
@@ -76,18 +84,17 @@ Core question: can **training-time routing patterns** pre-configure OCS circuits
 | `ocs_online` | Adaptive, amortized | Per-step from accumulated affinity | Inference-self-learning |
 
 ```bash
-bash scripts/run_preset_pipeline.sh data/routing_traces/routing.json   # train → plan → preset → compare
-python scripts/compare_ocs.py --mode all                                # EPS vs OCS runtime vs OCS preset
+bash scripts/run_preset_pipeline.sh data/routing_traces/routing.json   # trace → plan → EPS/OCS/preset → compare
 ```
 
-Preset strategies: `oracle`, `affinity`, `volume`, `random`, `none`. Key files: [src/ocs/preconfig.py](src/ocs/preconfig.py), [src/eval/affinity_consistency.py](src/eval/affinity_consistency.py).
+Preset sources: `trace` (recorded affinity → plan) or `plan` (pre-computed plan JSON). Key files: [src/ocs/preconfig.py](src/ocs/preconfig.py), [src/eval/affinity_consistency.py](src/eval/affinity_consistency.py).
 
 ### OCS Online Affinity
 
 No separate training phase — track expert co-activation *during* inference and periodically recompute the circuit plan, with exponential decay (`decay_factor` 0.99/step) for responsiveness to pattern shifts.
 
 ```bash
-python3 -m src.launcher --config configs/ocs_online.yaml
+python3 -m src.launcher --config configs/ocs_affinity_placement.yaml
 ```
 
 ### Affinity-Driven Placement (record affinity → adjust topology)
@@ -283,16 +290,15 @@ Agreed design principles for the OCS/topology work:
 
 ```
 src/
-├── model/        MoELayer, Router, Experts, Qwen expert loader, router replay
+├── model/        Qwen expert loader + gate, captured-routing replay router
 ├── comm/         all-to-all, transport, topology, timeline export
-├── ocs/          Circuit pool (LRU), placement, preconfig, online controller
+├── ocs/          Circuit pool (LRU), affinity placement, preconfig, online controller
 ├── runtime/      Per-rank worker, scheduler, process groups, placement tables
-├── train/        Trainer, load-balance loss, microbatching
-├── data/         Synthetic dataset, routing schema, HF/MLX/vLLM capture, interventions
+├── data/         Routing schema, MLX/vLLM capture, interventions, model utils
 ├── serving/      Multi-tenant vLLM serving capture (engine, workload, affinity, analyze)
-├── eval/         Overlap/OCS metrics, affinity consistency, profiler
+├── eval/         Affinity consistency metrics
 └── utils/        Timer, logging, seed
-configs/          YAML configs (synthetic, realistic, OCS, Qwen, preset)
+configs/          Qwen replay/OCS configs + affinity-driven placement
 scripts/          Viz, comparison, export, validation, presets, serving CLI,
                   verification gates (Phase 1–3)
 docs/             Research discussions, assumption ledger, architecture alignment
@@ -308,11 +314,11 @@ moe_mlx_learning.history.bundle   Pre-merge git history archive (undo path)
 | Parameter | Description | Default |
 | --------- | ----------- | ------- |
 | `world_size` | Number of ranks | 4 |
-| `model.num_experts` | Total experts (= world_size × experts_per_rank) | 4 |
-| `model.experts_per_rank` | Experts per GPU | 1 |
-| `model.hidden_dim` | Token embedding dim | 256 |
-| `model.top_k` | Top-K gating | 1 |
-| `routing.strategy` | `fixed`, `top1`, `top2`, `uniform_random` | `fixed` |
+| `model.num_experts` | Total experts (= world_size × experts_per_rank) | 32 |
+| `model.experts_per_rank` | Experts per GPU | 8 |
+| `model.hidden_dim` | Qwen dequantized hidden dim | 2048 |
+| `model.top_k` | Top-K gating | 2 |
+| `routing.strategy` | `replay` (captured routing) | `fixed` |
 | `placement.strategy` | Expert→rank table: `linear`, `shuffle`, `affinity`, `permutation` | `linear` |
 | `placement.trace_path` | Routing trace for the `affinity` strategy | `data/routing_traces/routing.json` |
 | `placement.rank_locations` | Explicit rank→(pod, node, local) table for the topology model | none (linear) |
