@@ -72,15 +72,15 @@ Delay = `latency + tensor_bytes / (bandwidth_gbps × 1000)`. Configurable in YAM
 | **Once established** | N/A | `circuit_latency_us` + bytes/BW |
 | **Capacity** | Unlimited | `max_circuits` pool, LRU eviction |
 
-### OCS Preset: Training → Inference Pre-Configuration
+### OCS Preset: Captured Affinity → Inference Pre-Configuration
 
-Core question: can **training-time routing patterns** pre-configure OCS circuits before inference begins, for zero runtime reconfig?
+Core question: can **captured routing patterns** pre-configure OCS circuits before inference begins, for zero runtime reconfig?
 
 | Mode | Reconfig | Circuits established | Use case |
 | ---- | -------- | -------------------- | -------- |
 | `ocs_pipeline` | Per-microbatch, inline | Before each scatter | Runtime adaptability |
 | `ocs_dbo` | Hidden behind compute | Batch K+1 during batch K | Mask reconfig latency |
-| `ocs_preset` | **None during inference** | **Before first token** | Training→inference pre-config |
+| `ocs_preset` | **None during inference** | **Before first token** | Captured-affinity → inference pre-config |
 | `ocs_online` | Adaptive, amortized | Per-step from accumulated affinity | Inference-self-learning |
 
 ```bash
@@ -91,7 +91,7 @@ Preset sources: `trace` (recorded affinity → plan) or `plan` (pre-computed pla
 
 ### OCS Online Affinity
 
-No separate training phase — track expert co-activation *during* inference and periodically recompute the circuit plan, with exponential decay (`decay_factor` 0.99/step) for responsiveness to pattern shifts.
+No separate capture phase — track expert co-activation *during* inference and periodically recompute the circuit plan, with exponential decay (`decay_factor` 0.99/step) for responsiveness to pattern shifts.
 
 ```bash
 python3 -m src.launcher --config configs/ocs_affinity_placement.yaml
@@ -302,7 +302,7 @@ configs/          Qwen replay/OCS configs + affinity-driven placement
 scripts/          Viz, comparison, export, validation, presets, serving CLI,
                   verification gates (Phase 1–3)
 docs/             Research discussions, assumption ledger, architecture alignment
-data/             Reference routing traces + training data for replay
+data/             Reference routing traces + fine-tuning dataset (moe_train)
 logs/             Phase 1–4 verification reports + captures (phase2/3/4)
 models/           MLX model weights (capture backends)
 adapters/         LoRA adapters (qwen3.6-moe-lora)
