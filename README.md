@@ -8,12 +8,12 @@ models (real & various) ──▶ affinity (recorded from captures) ──▶ ex
 
 ## Models
 
-| Model | Experts | top-k | Role |
-| ----- | ------- | ----- | ---- |
-| Qwen3.6-35B-A3B | 256 | 8 | primary: canonical traces, exported weights |
-| Qwen1.5-MoE-A2.7B | 60 | 4 | hardware invariance (Phase 2), model control (Phase 3) |
-| Hy3 | — | — | additional real-model capture |
-| Whittle (Qwen3.8) | — | — | additional real-model capture |
+| Model             | Experts | top-k | Role                                                   |
+| ----------------- | ------- | ----- | ------------------------------------------------------ |
+| Qwen3.6-35B-A3B   | 256     | 8     | primary: canonical traces, exported weights            |
+| Qwen1.5-MoE-A2.7B | 60      | 4     | hardware invariance (Phase 2), model control (Phase 3) |
+| Hy3               | —      | —    | additional real-model capture                          |
+| Whittle (Qwen3.8) | —      | —    | additional real-model capture                          |
 
 **Capture** (vLLM primary, MLX secondary; `--temp 0` = deterministic greedy; every backend validates the trace before saving):
 
@@ -73,11 +73,11 @@ python3 scripts/compare_model_affinity.py \
     --large logs/phase3/large/routing.json                  # Phase 3: 60e vs 256e models
 ```
 
-| Phase | Varied | Result | Verdict |
-| ----- | ------ | ------ | ------- |
-| 1 | topology config + expert/rank placement | affinity + plan bit-identical; only cost moves | topology/placement-independent ✓ |
-| 2 | engine (MLX vs vLLM-metal) | prefill overlap 0.933, JS 1.1e-4, corr 0.998, hit-rate 1.0 | hardware-independent (up to noise floor) ✓ |
-| 3 | model (60e vs 256e) | top-5 share 0.101→0.043, layer-JS 0.123→0.677 | presets are model-specific ✓ |
+| Phase | Varied                                  | Result                                                     | Verdict                                     |
+| ----- | --------------------------------------- | ---------------------------------------------------------- | ------------------------------------------- |
+| 1     | topology config + expert/rank placement | affinity + plan bit-identical; only cost moves             | topology/placement-independent ✓           |
+| 2     | engine (MLX vs vLLM-metal)              | prefill overlap 0.933, JS 1.1e-4, corr 0.998, hit-rate 1.0 | hardware-independent (up to noise floor) ✓ |
+| 3     | model (60e vs 256e)                     | top-5 share 0.101→0.043, layer-JS 0.123→0.677            | presets are model-specific ✓               |
 
 So **affinity = f(input, weights)** and can safely drive OCS configuration.
 Full ledger (claim → gate → report → open items): [docs/assumptions.md](docs/assumptions.md).
@@ -88,11 +88,11 @@ All communication cost follows the classic network α-β model, `T(n) = α + β�
 (α = fixed latency µs, β = inverse bandwidth µs/byte). **EPS** pays the
 3-tier fabric α/β:
 
-| Tier | Link | α (latency) | β (1/BW) |
-| ---- | ---- | ----------- | -------- |
-| INTRA_NODE | NVLink/NVSwitch | ~1 µs | 900 GB/s |
-| INTRA_POD | InfiniBand NDR | ~3 µs | 400 Gb/s |
-| CROSS_POD | core fabric | ~10 µs | 200 Gb/s |
+| Tier       | Link            | α (latency) | β (1/BW) |
+| ---------- | --------------- | ------------ | --------- |
+| INTRA_NODE | NVLink/NVSwitch | ~1 µs       | 900 GB/s  |
+| INTRA_POD  | InfiniBand NDR  | ~3 µs       | 400 Gb/s  |
+| CROSS_POD  | core fabric     | ~10 µs      | 200 Gb/s  |
 
 **OCS adds the fixed reconfiguration delay to α** on a cold circuit —
 exactly the "certain delay on top of EPS" the literature uses:
@@ -108,10 +108,10 @@ Two parameterizations of `T_reconfig` (SOA/ring ns–µs,
 [Sirius](https://dlnext.acm.org/doi/epdf/10.1145/3387514.3406221);
 3D-MEMS tens of µs + damping):
 
-| model | switch | `T_reconfig` | budget |
-| ----- | ------ | ------------ | ------ |
-| alpha | SOA/ring (fast, WSS fan-out) | 1 µs | world_size−1 |
-| beta | 3D-MEMS (port-limited) | 50 µs | 1 |
+| model | switch                       | `T_reconfig` | budget        |
+| ----- | ---------------------------- | -------------- | ------------- |
+| alpha | SOA/ring (fast, WSS fan-out) | 1 µs          | world_size−1 |
+| beta  | 3D-MEMS (port-limited)       | 50 µs         | 1             |
 
 ```bash
 python3 -m src.launcher --config configs/qwen_eps_baseline.yaml   # EPS
@@ -127,12 +127,12 @@ dispatch and gather).
 
 **Scheduling modes** (how/when the reconfig is paid):
 
-| Mode | Reconfig | Use case |
-| ---- | -------- | -------- |
-| `ocs_pipeline` | inline, before each scatter | runtime adaptability |
-| `ocs_dbo` | hidden behind previous batch's compute | mask reconfig latency |
-| `ocs_preset` | **none during inference** (plan pre-loaded) | affinity → pre-config |
-| `ocs_online` | adaptive, from live co-activation (decay 0.99) | inference self-learning |
+| Mode             | Reconfig                                          | Use case                |
+| ---------------- | ------------------------------------------------- | ----------------------- |
+| `ocs_pipeline` | inline, before each scatter                       | runtime adaptability    |
+| `ocs_dbo`      | hidden behind previous batch's compute            | mask reconfig latency   |
+| `ocs_preset`   | **none during inference** (plan pre-loaded) | affinity → pre-config  |
+| `ocs_online`   | adaptive, from live co-activation (decay 0.99)    | inference self-learning |
 
 ```bash
 bash scripts/run_preset_pipeline.sh data/routing_traces/routing.json   # trace → plan → EPS/OCS/preset → compare
