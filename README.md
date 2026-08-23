@@ -25,9 +25,13 @@ python scripts/run_vllm.py run --model Qwen/Qwen3.6-35B-A3B \
 # vLLM + Metal (Apple Silicon; the script pins VLLM_HOST_IP to loopback itself)
 source ~/.venv-vllm-metal/bin/activate
 python scripts/run_vllm.py run --model ./models/Qwen3.6-35B-A3B-4bit --max-tokens 256 --temp 0
+python scripts/run_vllm.py run --model ./models/Qwen3.8-Whittle-MoE-27B-A17.8B-4bit --max-tokens 256 --temp 0
+python scripts/run_vllm.py run --model ./models/Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-4bit --max-tokens 256 --temp 0
 
 # MLX (secondary)
 .venv/bin/python moe_run.py --model models/Qwen3.6-35B-A3B-4bit --max-tokens 128 --temp 0
+.venv/bin/python moe_run.py --model models/Qwen3.8-Whittle-MoE-27B-A17.8B-4bit --max-tokens 128 --temp 0
+.venv/bin/python moe_run.py --model models/Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-4bit --max-tokens 128 --temp 0
 
 # multi-tenant serving
 PY=~/.venv-vllm-metal/bin/python
@@ -61,11 +65,26 @@ Placement decides *where* experts live — `placement.strategy`: `linear` (defau
 
 Recorded from the captured routing (expert co-activation per token/layer).
 Verification gates prove it is trustworthy before OCS uses it — routing is
-a pure function of (input, weights); topology, placement, and engine never
-change *which* expert a token hits, only the cost:
+a pure function of (input, weights): topology, placement, and engine never
+change *which expert* a token hits, only the cost.
+
+**Phase 1 is a LIVE one-variable-at-a-time matrix** — the gate runs the
+models itself (vLLM, greedy) at call time and captures routing in real
+time; no pre-recorded traces. One fixed baseline (one model, one prompt,
+one rank-node projection), then change exactly one knob and observe:
+
+| Vary (keep the rest fixed) | `token → expert` (routing) | `token → rank` / cost |
+| -------------------------- | -------------------------- | --------------------- |
+| topology | **identical** (bit-for-bit) | delays move by tier |
+| placement | **identical** | **relabeled** — same experts, different owning ranks |
+| prompt | **changes** (new affinity graph) | changes accordingly |
+| model | **changes everywhere** | changes accordingly |
 
 ```bash
-python3 scripts/verify_ocs_invariance.py        # Phase 1: topology + placement invariance + payoff
+# Phase 1: LIVE matrix (needs the vllm-metal env — it runs real inference)
+~/.venv-vllm-metal/bin/python scripts/verify_live_invariance.py            # all models in order
+~/.venv-vllm-metal/bin/python scripts/verify_live_invariance.py \
+    --model models/Qwen3.8-Whittle-MoE-27B-A17.8B-4bit                     # one model
 python3 scripts/compare_backend_traces.py \
     --a logs/phase2/mlx/routing.json \
     --b logs/phase2/run_uniform_1t/traces/tenant-000.json   # Phase 2: MLX vs vLLM-metal
@@ -74,9 +93,15 @@ python3 scripts/compare_model_affinity.py \
     --large logs/phase3/large/routing.json                  # Phase 3: 60e vs 256e models
 ```
 
+The live gate also refreshes the canonical replay trace
+(`data/routing_traces/routing.json` + a model-stamped copy) with the
+baseline capture — `run_vllm.py run` likewise writes model-stamped files
+(`logs/routing_vllm_<model>.json`), so captures from different models
+never overwrite each other.
+
 | Phase | Varied                                  | Result                                                     | Verdict                                     |
 | ----- | --------------------------------------- | ---------------------------------------------------------- | ------------------------------------------- |
-| 1     | topology config + expert/rank placement | affinity + plan bit-identical; only cost moves             | topology/placement-independent ✓           |
+| 1     | topology config + expert/rank placement | token→expert bit-identical; token→rank relabels; cost moves | topology/placement-independent ✓           |
 | 2     | engine (MLX vs vLLM-metal)              | prefill overlap 0.933, JS 1.1e-4, corr 0.998, hit-rate 1.0 | hardware-independent (up to noise floor) ✓ |
 | 3     | model (60e vs 256e)                     | top-5 share 0.101→0.043, layer-JS 0.123→0.677            | presets are model-specific ✓               |
 
@@ -140,8 +165,8 @@ bash scripts/run_preset_pipeline.sh data/routing_traces/routing.json   # trace �
 ```
 
 **Placement payoff** (affinity applied): `placement.strategy: affinity`
-raises intra-rank affinity 0.026 → 0.115; `placement.rank_locations`
-(plan-centrality packing) cuts the top-16 plan's cross-pod pairs 3 → 0.
+raises intra-rank affinity 0.026 → 0.102; `placement.rank_locations`
+(plan-centrality packing) cuts the top-16 plan's cross-pod pairs 5 → 2.
 
 ## Project structure
 

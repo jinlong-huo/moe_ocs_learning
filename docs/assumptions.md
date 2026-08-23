@@ -7,10 +7,10 @@ condensed version.
 
 | #  | Assumption                                                                                                  | Status                                                        | Gate script                                                                            | Report                                                                      |
 | -- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| A1 | Routing is a pure function of (input, weights) — independent of topology, node distribution, and engine    | ✅ verified (framework + hardware)                            | `scripts/verify_ocs_invariance.py` (§1–§2), `scripts/compare_backend_traces.py` | `logs/ocs_invariance_report.json`, `logs/phase2/invariance_report.json` |
+| A1 | Routing is a pure function of (input, weights) — independent of topology, node distribution, and engine | ✅ verified (live + hardware) | `scripts/verify_live_invariance.py` (§topology/placement), `scripts/compare_backend_traces.py` | `logs/live_invariance_report.json`, `logs/phase2/invariance_report.json` |
 | A2 | Affinity is model×input specific — OCS presets must be re-derived per model                               | ✅ verified (model level); ⚠️ quantization-level drift open | `scripts/compare_model_affinity.py`                                                  | `logs/phase3/model_diversity_report.json`                                 |
 | A3 | Per-cell routing is noisy (quantized-GEMM near-ties); trust distribution-level metrics only                 | ⚠️ empirically established, per-cell decisions avoided      | `scripts/vllm_serve.py affinity` (calibration families)                              | `logs/multi_tenant/run_*/affinity_report.json`                            |
-| A4 | Placement is a cost-side variable — recorded affinity can safely configure expert→rank and rank→location | ✅ verified (framework)                                       | `scripts/verify_ocs_invariance.py` (§3)                                             | `logs/ocs_invariance_report.json` (affinity_adjustment)                   |
+| A4 | Placement is a cost-side variable — recorded affinity can safely configure expert→rank and rank→location | ✅ verified (live payoff) | `scripts/verify_live_invariance.py` (payoff) | `logs/live_invariance_report.json` (payoff) |
 | A5 | Multi-tenant co-batching creates measurable expert contention                                               | ✅ measured                                                   | `scripts/vllm_serve.py analyze`                                                      | `logs/multi_tenant/run_*/session_report.json`                             |
 | A6 | OCS cost model is the field-standard alpha-beta model: T(n) = α + β·n, with α_ocs = α_eps + T_reconfig | ✅ implemented + comparable | `scripts/compare_ocs_models.py` | `outputs/ocs_model_comparison.json` |
 
@@ -26,20 +26,28 @@ hits — only the *cost* of getting there.
 
 **Verification, two levels.**
 
-*Phase 1 (framework, exact arithmetic).* Replays one real Qwen trace
-(`data/routing_traces/routing.json`, 256 experts, top-8):
+*Phase 1 (live, exact arithmetic).* The gate runs REAL inference itself
+(vLLM-metal, greedy) — no pre-recorded traces — and applies a
+one-variable-at-a-time matrix on the captured `token → expert` routing:
 
 ```bash
-python3 scripts/verify_ocs_invariance.py \
-    --trace data/routing_traces/routing.json --world-size 32 --experts-per-rank 8
+~/.venv-vllm-metal/bin/python scripts/verify_live_invariance.py
 ```
 
-- §1 topology invariance: affinity matrix + circuit plan bit-identical under
-  4 three-tier fabrics (1×1×32 → 4×2×4, slow fabric, delay multiplier);
-  only per-circuit dispatch delay moves.
-- §2 placement invariance: `Placement.linear` == historical `e//k`/`e%k`
-  bit-for-bit; swap/shuffle relabel ranks without touching routing or the
-  affinity matrix; only the **rank-pair plan** projection changes.
+- vary topology (flat ↔ multi-tier fabrics): `token → expert` bit-identical
+  (the same live recording replayed); only pairwise delay/cost moves.
+- vary placement (linear ↔ shuffled expert→rank tables): `token → expert`
+  identical; `token → rank` relabeled — same experts, different owning
+  ranks; the rank-pair plan projection changes.
+- vary prompt (same model): `token → expert` CHANGES — divergence metrics
+  asserted (top-k overlap < 1, JS > 0, plan hit-rate < 1).
+- vary model (same prompt): routing distributions diverge — asserted.
+- folded payoff: affinity clustering raises intra-rank affinity and
+  centrality-ordered rank locations cut cross-tier exposure.
+
+Report: `logs/live_invariance_report.json`. The baseline capture refreshes
+the canonical replay trace (`data/routing_traces/routing.json` + a
+model-stamped copy).
 
 *Phase 2 (hardware, up to the noise floor).* Same 4-bit weights, same prompt,
 greedy decoding, MLX vs vLLM-metal:
@@ -99,16 +107,16 @@ make communication and computation cheaper, without changing routing.
 **Verification (Phase 1 §3) + runtime.**
 
 ```bash
-python3 scripts/verify_ocs_invariance.py   # §3 payoff section
+python3 scripts/verify_live_invariance.py   # payoff section, folded in
 python3 -m src.launcher --config configs/ocs_affinity_placement.yaml
 ```
 
 - Greedy co-activation clustering (`placement.strategy: affinity`) sets
-  expert→rank: intra-rank affinity fraction 0.026 → 0.115 (more co-activated
+  expert→rank: intra-rank affinity fraction 0.026 → 0.102 (more co-activated
   experts share a rank, skipping the network).
 - Plan-centrality packing (`placement.rank_locations`, exported by the gate)
-  sets rank→location: top-16 circuit plan cross-pod pairs 3 → 0, score-weighted
-  cross-pod exposure 0.187 → 0.000.
+  sets rank→location: top-16 circuit plan cross-pod pairs 5 → 2, score-weighted
+  cross-pod exposure 0.311 → 0.119.
 - Default `placement.strategy: linear` reproduces every historical experiment
   bit-for-bit; routing never reads placement (only dispatch and the topology
   delay model do).

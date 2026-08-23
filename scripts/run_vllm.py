@@ -56,7 +56,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # ── run ────────────────────────────────────────────────────────
     p_run = sub.add_parser("run", help="Run vLLM MoE inference with routing capture")
     _add_common_args(p_run)
-    p_run.add_argument("--output", default="logs/routing_vllm.json")
+    p_run.add_argument("--output", default=None,
+                       help="Trace output path (default: logs/routing_vllm_<model-slug>.json "
+                            "— stamped per model so different models never overwrite each other)")
 
     # ── intervene ──────────────────────────────────────────────────
     p_int = sub.add_parser("intervene", help="vLLM inference with routing intervention")
@@ -128,107 +130,45 @@ def _build_sampling_params(args, llm):
 
 
 def _run_vllm_generation(args: argparse.Namespace, steering) -> int:
-    import os
+    """Run one live vLLM inference with routing capture and save the trace.
 
-    import torch
+    Delegates to ``src.data.live_capture.capture_live`` (realtime capture,
+    no pre-recorded traces). The output path defaults to a model-stamped
+    file so captures from different models never overwrite each other.
+    """
+    from src.data.live_capture import capture_live
 
-    # Routing hooks require reaching the live model. The V1 engine runs it in
-    # a separate EngineCore process by default, so force the in-process core
-    # (V0-style). Also required for the vllm-metal (MLX) backend on macOS.
-    os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")
-    # macOS loopback: the machine hostname may resolve to an unreachable LAN IP
-    # (e.g. 10.23.0.1), which crashes PyTorch's TCPStore. Pin the host IP to
-    # loopback — vLLM reads VLLM_HOST_IP, not MASTER_ADDR, for this.
-    os.environ.setdefault("VLLM_HOST_IP", "127.0.0.1")
-    os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
-
-    from vllm import LLM
-    from src.data.vllm_capture import (
-        VllmRoutingCapture, install_vllm_hooks, install_vllm_metal_hooks,
-        get_vllm_layout, locate_model, restore_vllm_metal_hooks,
-    )
-
-    llm_kwargs = dict(
-        model=args.model,
-        enforce_eager=args.enforce_eager,
-        tensor_parallel_size=args.tensor_parallel_size,
-        seed=args.seed,
-        trust_remote_code=args.trust_remote_code,
-    )
-    if args.max_model_len:
-        llm_kwargs["max_model_len"] = args.max_model_len
-
-    print(f"[load] Model: {args.model}")
-    print(f"[load] enforce_eager={args.enforce_eager}, "
-          f"tensor_parallel_size={args.tensor_parallel_size}")
-    llm = LLM(**llm_kwargs)
-
-    model = locate_model(llm)
-    if model is None:
-        print("[error] Could not locate the loaded model for hook installation")
+    try:
+        trace = capture_live(
+            model=args.model,
+            prompt=args.prompt,
+            max_tokens=args.max_tokens,
+            temp=args.temp,
+            seed=args.seed,
+            system_prompt=args.system_prompt,
+            no_chat=args.no_chat,
+            enforce_eager=args.enforce_eager,
+            tensor_parallel_size=args.tensor_parallel_size,
+            max_model_len=args.max_model_len,
+            trust_remote_code=args.trust_remote_code,
+            steering=steering,
+        )
+    except Exception as e:
+        print(f"[error] live capture failed: {e}")
         return 1
-
-    capture = VllmRoutingCapture()
-
-    is_metal = (
-        not isinstance(model, torch.nn.Module)
-        and model.__class__.__module__.startswith("mlx_lm")
-    )
-    if is_metal:
-        print("[hook] Detected vllm-metal (MLX) backend")
-        install_vllm_metal_hooks(model, capture, steering)
-    else:
-        install_vllm_hooks(model, capture, steering)
-
-    layout = get_vllm_layout(llm, capture)
-    print(f"[layout] model_type={layout['model_type']}, "
-          f"layers={layout['num_layers']}, experts={layout['num_experts']}, "
-          f"top_k={layout['top_k']}")
 
     if steering is not None and steering.active_layers:
         print(f"[steering] Active layers: {steering.active_layers}")
 
-    tokenizer = llm.get_tokenizer()
-    sampling_params = _build_sampling_params(args, llm)
-
-    print(f"[input] Prompt: {args.prompt[:80]}{'...' if len(args.prompt) > 80 else ''}")
-
-    messages = None
-    if not args.no_chat:
-        messages = [
-            {"role": "system", "content": args.system_prompt},
-            {"role": "user", "content": args.prompt},
-        ]
-
-    if args.no_chat:
-        outputs = llm.generate([args.prompt], sampling_params=sampling_params)
+    # Model-stamped default output: logs/routing_vllm_<model-slug>.json
+    if args.output:
+        out_path = Path(args.output)
     else:
-        try:
-            outputs = llm.chat([messages], sampling_params=sampling_params)
-        except Exception as e:
-            print(f"[warn] chat template failed ({e}); falling back to plain prompt")
-            outputs = llm.generate([args.prompt], sampling_params=sampling_params)
+        slug = Path(args.model).name.replace("/", "_")
+        out_path = Path("logs") / f"routing_vllm_{slug}.json"
 
-    out = outputs[0]
-    prompt_tokens = list(out.prompt_token_ids)
-    generated_tokens = list(out.outputs[0].token_ids)
-    print(f"[summary] Prompt tokens: {len(prompt_tokens)}, "
-          f"generated: {len(generated_tokens)}")
-    print(f"[output] {out.outputs[0].text!r}")
-
-    # ── Build canonical RoutingTrace ──
-    trace = capture.build_trace(
-        prompt_tokens=prompt_tokens,
-        generated_tokens=generated_tokens,
-        tokenizer=tokenizer,
-        model_id=args.model,
-        backend="vllm",
-        **layout,
-    )
-    out_path = Path(args.output)
+    trace.guide_affinity = _load_guide_affinity(args, None)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    trace.guide_affinity = _load_guide_affinity(args, messages)
-    trace.validate()
     trace.save(str(out_path))
     print(f"[save] Routing trace → {out_path}")
     print(f"[stats] {trace.total_routing_events()} routing events, "

@@ -1,6 +1,6 @@
 # Affinity-driven placement for OCS — the merged single story, on REAL Qwen weights.
 #
-#   Step 1 (verify):  python3 scripts/verify_ocs_invariance.py
+#   Step 1 (verify):  python3 scripts/verify_live_invariance.py
 #     Gates that affinity is independent of node distribution (placement)
 #     and of the network topology config, so a recorded routing trace can
 #     safely drive OCS configuration.
@@ -15,7 +15,7 @@
 #       - placement.rank_locations     : plan-centrality packing sets
 #         rank -> physical location, so the top circuit pairs sit intra-node /
 #         intra-pod (comm side: cross-pod exposure of the top-16 plan drops
-#         3 -> 0 pairs in the reference vLLM trace). The table is exported by
+#         5 -> 2 pairs in the live Qwen3.6 capture). The table is exported by
 #         the gate (logs/ocs_invariance_report.json -> affinity_adjustment).
 #
 # Routing never changes — only where experts live and what travel costs.
@@ -36,45 +36,40 @@ qwen:
 placement:
   strategy: affinity
   trace_path: data/routing_traces/routing.json
-  rank_locations:          # plan-centrality order (from verify_ocs_invariance.py)
-    - [0, 2, 2]  # rank 0
-    - [1, 0, 0]  # rank 1
-    - [0, 0, 1]  # rank 2
-    - [1, 0, 1]  # rank 3
-    - [1, 0, 2]  # rank 4
-    - [0, 0, 0]  # rank 5
-    - [1, 0, 3]  # rank 6
-    - [1, 1, 0]  # rank 7
-    - [1, 1, 1]  # rank 8
-    - [1, 1, 2]  # rank 9
-    - [0, 2, 0]  # rank 10
-    - [1, 1, 3]  # rank 11
-    - [0, 0, 2]  # rank 12
-    - [0, 1, 2]  # rank 13
-    - [0, 0, 3]  # rank 14
-    - [1, 2, 0]  # rank 15
-    - [0, 3, 3]  # rank 16
-    - [0, 3, 0]  # rank 17
-    - [1, 2, 1]  # rank 18
-    - [0, 2, 3]  # rank 19
-    - [0, 1, 0]  # rank 20
-    - [1, 2, 2]  # rank 21
-    - [1, 2, 3]  # rank 22
-    - [0, 2, 1]  # rank 23
-    - [0, 3, 1]  # rank 24
-    - [1, 3, 0]  # rank 25
-    - [0, 3, 2]  # rank 26
-    - [1, 3, 1]  # rank 27
-    - [1, 3, 2]  # rank 28
-    - [1, 3, 3]  # rank 29
-    - [0, 1, 3]  # rank 30
-    - [0, 1, 1]  # rank 31
+  rank_locations:          # plan-centrality order (from verify_live_invariance.py)
+    - [1, 0, 2]  # rank 0
+    - [0, 2, 2]  # rank 1
+    - [1, 0, 3]  # rank 2
+    - [1, 1, 0]  # rank 3
+    - [0, 2, 0]  # rank 4
+    - [0, 1, 0]  # rank 5
+    - [0, 3, 3]  # rank 6
+    - [1, 1, 1]  # rank 7
+    - [0, 0, 0]  # rank 8
+    - [0, 1, 3]  # rank 9
+    - [0, 3, 0]  # rank 10
+    - [0, 2, 3]  # rank 11
+    - [1, 1, 2]  # rank 12
+    - [1, 1, 3]  # rank 13
+    - [1, 2, 0]  # rank 14
+    - [0, 1, 1]  # rank 15
+    - [1, 0, 0]  # rank 16
+    - [1, 2, 1]  # rank 17
+    - [0, 2, 1]  # rank 18
+    - [0, 0, 3]  # rank 19
+    - [1, 2, 2]  # rank 20
+    - [0, 0, 2]  # rank 21
+    - [0, 1, 2]  # rank 22
+    - [0, 3, 2]  # rank 23
+    - [0, 0, 1]  # rank 24
+    - [0, 3, 1]  # rank 25
+    - [1, 2, 3]  # rank 26
+    - [1, 3, 0]  # rank 27
+    - [1, 3, 1]  # rank 28
+    - [1, 0, 1]  # rank 29
+    - [1, 3, 2]  # rank 30
+    - [1, 3, 3]  # rank 31
 
-topology:
-  enabled: true
-  num_pods: 2
-  nodes_per_pod: 4
-  ranks_per_node: 4
 
 ocs:
   enabled: true

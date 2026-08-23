@@ -531,7 +531,8 @@ def _make_metal_moe_call(capture: VllmRoutingCapture, steering):
         k = self.top_k
         inds = mx.argpartition(gates, kth=-k, axis=-1)[..., -k:]
         scores = mx.take_along_axis(gates, inds, axis=-1)
-        if self.norm_topk_prob:
+        if getattr(self, "norm_topk_prob", False):
+            # qwen2_moe-style blocks lack norm_topk_prob — skip renormalization.
             scores = scores / scores.sum(axis=-1, keepdims=True)
 
         offset = _METAL_OFFSET[-1]
