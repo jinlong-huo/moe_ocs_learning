@@ -1,6 +1,6 @@
 # MoE + OCS Research Testbed
 
-Simulate **various real MoE models** — their actual expert weights on ranks, their actual captured routing — and then **verify OCS given the recorded affinity**, on an authentic 3-tier electrical fabric (EPS) with the field-standard α-β cost model.
+Simulate **various real MoE models** — their actual expert weights on ranks, their actual captured routing — and then **verify OCS given the recorded affinity**, on an authentic 3-tier electrical fabric (EPS) with the α-β cost model.
 
 ```
 models (real & various) ──▶ affinity (recorded from captures) ──▶ experts on ranks ──▶ OCS verification
@@ -18,20 +18,24 @@ models (real & various) ──▶ affinity (recorded from captures) ──▶ ex
 **Capture** (vLLM primary, MLX secondary; `--temp 0` = deterministic greedy; every backend validates the trace before saving):
 
 ```bash
+# vLLM (CUDA)
 python scripts/run_vllm.py run --model Qwen/Qwen3.6-35B-A3B \
-    --prompt "Explain MoE routing." --max-tokens 128 --temp 0          # vLLM (CUDA)
+    --prompt "Explain MoE routing." --max-tokens 128 --temp 0
 
-source ~/.venv-vllm-metal/bin/activate                                 # vLLM + Metal (Apple Silicon;
-python scripts/run_vllm.py run \                                       #   script pins VLLM_HOST_IP itself)
-    --model ./models/Qwen3.6-35B-A3B-4bit --max-tokens 256 --temp 0
+# vLLM + Metal (Apple Silicon; the script pins VLLM_HOST_IP to loopback itself)
+source ~/.venv-vllm-metal/bin/activate
+python scripts/run_vllm.py run --model ./models/Qwen3.6-35B-A3B-4bit --max-tokens 256 --temp 0
 
-.venv/bin/python moe_run.py --model models/Qwen3.6-35B-A3B-4bit --max-tokens 128 --temp 0   # MLX
+# MLX (secondary)
+.venv/bin/python moe_run.py --model models/Qwen3.6-35B-A3B-4bit --max-tokens 128 --temp 0
 
-PY=~/.venv-vllm-metal/bin/python                                       # multi-tenant serving
+# multi-tenant serving
+PY=~/.venv-vllm-metal/bin/python
 $PY scripts/vllm_serve.py run --tenants 4 --schedule burst --greedy --max-tokens 32
 $PY scripts/vllm_serve.py analyze logs/multi_tenant/run_burst_4t --plot      # contention/TTFT
 $PY scripts/vllm_serve.py affinity logs/multi_tenant/run_burst_4t --plot     # prompt families
 
+# additional models
 python3 scripts/download_external_models.py --target hy3 --mirror      # or whittle: add models
 python3 moe_run.py --model ./models/Hy3-oQ2 --max-tokens 32 --temp 0 --log-dir logs/phase4/hy3
 ```
@@ -51,10 +55,7 @@ python3 -m src.launcher --config configs/qwen_ocs_pipeline.yaml  # 32 experts
 python3 -m src.launcher --config configs/ocs_affinity_placement.yaml  # 256 experts, 32 ranks
 ```
 
-Placement decides *where* experts live — `placement.strategy`: `linear`
-(default `e//k`), `shuffle`, `affinity` (co-activation clustering), or
-`permutation`; `placement.rank_locations` pins ranks to physical spots.
-Routing never reads placement.
+Placement decides *where* experts live — `placement.strategy`: `linear` (default `e//k`), `shuffle`, `affinity` (co-activation clustering), or `permutation`; `placement.rank_locations` pins ranks to physical spots. Routing never reads placement.
 
 ## Affinity
 
