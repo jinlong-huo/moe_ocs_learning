@@ -273,3 +273,88 @@ class Placement:
             f"Placement(num_experts={self.num_experts}, "
             f"experts_per_rank={self.experts_per_rank}, world_size={self.world_size})"
         )
+
+
+def build_placement_manifest(
+    placement: "Placement",
+    topology=None,
+    *,
+    strategy: str = "linear",
+    seed: Optional[int] = None,
+    topology_name: Optional[str] = None,
+) -> dict:
+    """Serialize the cost-side projection into the trace's placement manifest.
+
+    Records three things, each a *derived* function of (routing, placement):
+
+      1. ``expert_to_rank``  — which rank owns each global expert id
+         (the compute-side half: where the expert's weights live).
+      2. ``rank_to_location`` — each rank's physical (pod, node, local_rank)
+         home (the comm-side half: how far a token must travel).
+      3. ``topology``        — the fabric shape + per-tier latency/bandwidth
+         that produced the locations.
+
+    ``topology`` is a duck-typed ``Topology`` (has ``.config``, ``.get_location``,
+    ``.get_link_tier``). It is optional: when omitted the locations fall back to
+    ``placement.rank_to_location`` and the topology section records a flat
+    single-node fabric. This helper never touches routing — it only reads
+    ``expert_to_rank`` and resolves physical homes.
+    """
+    manifest: dict = {
+        "strategy": strategy,
+        "seed": seed,
+        "experts_per_rank": placement.experts_per_rank,
+        "world_size": placement.world_size,
+        "expert_to_rank": placement.expert_to_rank.tolist(),
+    }
+
+    if topology is not None:
+        cfg = topology.config
+        world = placement.world_size
+        rank_to_location = [
+            [loc.pod_id, loc.node_id, loc.local_rank]
+            for loc in (topology.get_location(r) for r in range(world))
+        ]
+        # Which tiers are actually reachable between any two ranks (exact, not
+        # assumed from the shape) — this is the "3-tier rack" evidence.
+        tiers_present = set()
+        for r in range(world):
+            for s in range(r + 1, world):
+                tiers_present.add(int(topology.get_link_tier(r, s)))
+        manifest["rank_to_location"] = rank_to_location
+        manifest["topology"] = {
+            "name": topology_name,
+            "num_pods": cfg.num_pods,
+            "nodes_per_pod": cfg.nodes_per_pod,
+            "ranks_per_node": cfg.ranks_per_node,
+            "tiers_present": sorted(tiers_present),
+            "latency_us": {
+                "intra_node": cfg.intra_node_latency_us,
+                "intra_pod": cfg.intra_pod_latency_us,
+                "cross_pod": cfg.cross_pod_latency_us,
+            },
+            "bandwidth_gbps": {
+                "intra_node": cfg.intra_node_bandwidth_gbps,
+                "intra_pod": cfg.intra_pod_bandwidth_gbps,
+                "cross_pod": cfg.cross_pod_bandwidth_gbps,
+            },
+        }
+    else:
+        # No Topology object: record the flat single-node home explicitly so
+        # the trace stays self-documenting (every rank in pod 0 / node 0,
+        # local_rank == rank).
+        manifest["rank_to_location"] = (
+            [list(t) for t in placement.rank_to_location]
+            if placement.rank_to_location is not None
+            else [[0, 0, r] for r in range(placement.world_size)]
+        )
+        manifest["topology"] = {
+            "name": topology_name,
+            "num_pods": 1,
+            "nodes_per_pod": 1,
+            "ranks_per_node": placement.world_size,
+            "tiers_present": [0],  # INTRA_NODE only
+            "latency_us": {"intra_node": 1.0, "intra_pod": 3.0, "cross_pod": 10.0},
+            "bandwidth_gbps": {"intra_node": 900.0, "intra_pod": 400.0, "cross_pod": 200.0},
+        }
+    return manifest

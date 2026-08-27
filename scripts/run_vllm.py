@@ -129,6 +129,31 @@ def _build_sampling_params(args, llm):
     return SamplingParams(**kwargs)
 
 
+def _attach_default_placement(trace) -> None:
+    """Attach a self-documenting default placement manifest to a fresh trace.
+
+    A standalone capture runs single-GPU (no real EP placement); the placement
+    is the *cost-side projection* the OCS pipeline applies later. We record a
+    linear projection onto a flat single-node fabric so every trace is
+    self-describing about its expert->rank / rank->location mapping, and the
+    invariance gate (``verify_live_invariance.py``) overwrites it with the real
+    3-tier topology + shuffle variants when it re-records the canonical trace.
+    """
+    from src.runtime.placement import Placement, build_placement_manifest
+
+    num_experts = trace.meta.num_experts
+    for epr in (8, 4, 2, 1):
+        if num_experts % epr == 0:
+            break
+    else:
+        epr = 1
+    world = num_experts // epr
+    placement = Placement.linear(num_experts, epr, world)
+    trace.placement = build_placement_manifest(
+        placement, strategy="linear", seed=None, topology_name="flat"
+    )
+
+
 def _run_vllm_generation(args: argparse.Namespace, steering) -> int:
     """Run one live vLLM inference with routing capture and save the trace.
 
@@ -168,6 +193,7 @@ def _run_vllm_generation(args: argparse.Namespace, steering) -> int:
         out_path = Path("logs") / f"routing_vllm_{slug}.json"
 
     trace.guide_affinity = _load_guide_affinity(args, None)
+    _attach_default_placement(trace)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     trace.save(str(out_path))
     print(f"[save] Routing trace → {out_path}")

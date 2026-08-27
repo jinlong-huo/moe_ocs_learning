@@ -47,6 +47,7 @@ def expert_distribution(expert_ids_list, num_experts: int) -> np.ndarray:
     return counts / total
 
 
+
 def js_divergence(p: np.ndarray, q: np.ndarray) -> float:
     p = np.asarray(p, dtype=np.float64)
     q = np.asarray(q, dtype=np.float64)
@@ -159,9 +160,12 @@ def pairwise_metrics(trace_a, trace_b, num_experts: int, layers: list[str],
     topk_overlap = overlap_hits / n_cells
     mean_jaccard = jacc_sum / n_cells
 
+
     # ── same-token cells: (token_id, layer) present in both traces,
     #    regardless of position — how does the same token route in
-    #    different prompt contexts? ─────────────────────────────────
+    #    different prompt contexts? ───────────────────────────────── # this is the key verification point, since we want to examine the token cases, like here, we have the tokens different in different prompt then, so we at least give an identical one, for different models and within a certain noise level; apart from that, we might have the different prompt, like here we should also pay attention to some works that have investigated that whether the math prompt is different the coding expert then, if so we might have design a set of different experiments to figure this out then. 
+    
+    # And in the mean time, we should have different models to verify this case though. OFC the model should have only one settings, otherwise the exp makes no sense. 
     tok_key_a = {(tid, lid): (experts, weights) for _p, tid, lid, experts, weights in cells_a
                  if tid >= 0}
     tok_key_b = {(tid, lid): (experts, weights) for _p, tid, lid, experts, weights in cells_b

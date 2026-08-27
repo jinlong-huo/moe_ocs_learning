@@ -19,6 +19,38 @@ from pathlib import Path
 from typing import Optional
 
 
+def _validate_placement(placement: dict, meta: "RunMeta", problems: list[str]) -> None:
+    """Light consistency check for an optional placement manifest.
+
+    The manifest records the cost-side projection attached to a trace:
+    expert -> rank, rank -> physical (pod, node, local_rank), and the
+    topology shape that produced the locations. It must be *consistent with*
+    the routing meta (same expert space), but it never feeds back into
+    routing — a malformed manifest is a capture bug, not a routing bug.
+    """
+    e2r = placement.get("expert_to_rank")
+    if e2r is not None:
+        if len(e2r) != meta.num_experts:
+            problems.append(
+                f"placement expert_to_rank length {len(e2r)} "
+                f"!= meta.num_experts {meta.num_experts}"
+            )
+        else:
+            if any(not (0 <= int(r) < len(e2r)) for r in e2r):
+                problems.append("placement expert_to_rank contains out-of-range rank")
+    r2l = placement.get("rank_to_location")
+    ws = placement.get("world_size")
+    if r2l is not None and ws is not None and len(r2l) != ws:
+        problems.append(
+            f"placement rank_to_location length {len(r2l)} != world_size {ws}"
+        )
+    topo = placement.get("topology")
+    if topo is not None:
+        for k in ("num_pods", "nodes_per_pod", "ranks_per_node"):
+            if k not in topo:
+                problems.append(f"placement.topology missing {k!r}")
+
+
 @dataclass
 class RunMeta:
     """Metadata recorded once per inference run."""
@@ -64,6 +96,7 @@ class RoutingTrace:
     generated_tokens: list[int]
     routes: list[TokenRoute]
     guide_affinity: Optional[list[list[float]]] = None
+    placement: Optional[dict] = None
 
     def to_dict(self) -> dict:
         return {
@@ -84,6 +117,7 @@ class RoutingTrace:
             ],
             "guide_affinity": self.guide_affinity
                 if self.guide_affinity is not None else None,
+            "placement": self.placement,
         }
 
     def save(self, path: str | Path) -> Path:
@@ -96,7 +130,7 @@ class RoutingTrace:
     @classmethod
     def load(cls, path: str | Path) -> "RoutingTrace":
         with open(path) as f:
-            raw = json.load(f)
+            raw = json.load(fp=f)
         meta_raw = raw["meta"]
         meta = RunMeta(
             model_id=meta_raw["model_id"],
@@ -129,6 +163,7 @@ class RoutingTrace:
             generated_tokens=raw["generated_tokens"],
             routes=routes,
             guide_affinity=raw.get("guide_affinity"),
+            placement=raw.get("placement"),
         )
 
     @property
@@ -216,6 +251,9 @@ class RoutingTrace:
             problems.append(
                 f"{len(self.generated_tokens)} generated token ids != meta.generated_len"
             )
+
+        if self.placement is not None:
+            _validate_placement(self.placement, self.meta, problems)
 
         if problems:
             raise ValueError(

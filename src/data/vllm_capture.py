@@ -163,7 +163,7 @@ class VllmRoutingCapture:
         moe_layer_indices = sorted(self._moe_layers)
 
         route_objs: list[TokenRoute] = []
-        for pos in sorted(self._routes.keys()):
+        for pos in sorted(self._routes.keys()): # layers 0 - 40; length of layers is determined by the number of moe length; len 51 last token position = prompt_len + generate_len without counting the last token "EOS"
             info = self._routes[pos]
             tid = all_tokens[pos] if 0 <= pos < len(all_tokens) else -1
             tok_str = _decode(tokenizer, [tid]) if tid >= 0 else ""
