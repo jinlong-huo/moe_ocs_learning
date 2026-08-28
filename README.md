@@ -5,6 +5,13 @@ actually lets you exploit on a 3-tier electrical fabric (EPS): expert
 placement, communication cost, and — as a bounded feasibility question —
 optical circuit switching (OCS).
 
+
+
+The configs folder holds the OCS settings; the data folder holds reference
+routing traces (vLLM-captured) that feed the evidence chain and the legacy
+replay plane. Training-stage artifacts (LoRA adapters, exported expert
+weights, the fine-tuning dataset) have been moved out of the repo.
+
 ```
 models (real) ──▶ captured routing traces ──▶ per-layer affinity ──▶ placement / cost / OCS feasibility
 ```
@@ -26,15 +33,15 @@ The publishable contribution is a **placement** result, not an OCS result.
 
 Qwen3.6-35B (E=256, K=8), leave-categories-out, EP=32:
 
-| placement | bottleneck vs random |
-|---|---|
-| random (the correct null) | 0 % |
-| linear (the deployed default) | +4.6 % |
-| load-balanced alone | +11.1 % |
-| affinity, layer-pooled | +7.4 % |
-| affinity, per-layer, **independent** | **−100.6 %** (2× worse than random) |
-| **affinity, per-layer, coordinated** | **+32.8 %** |
-| adversarial (upper bound) | −129.9 % |
+| placement                                  | bottleneck vs random                        |
+| ------------------------------------------ | ------------------------------------------- |
+| random (the correct null)                  | 0 %                                         |
+| linear (the deployed default)              | +4.6 %                                      |
+| load-balanced alone                        | +11.1 %                                     |
+| affinity, layer-pooled                     | +7.4 %                                      |
+| affinity, per-layer,**independent**  | **−100.6 %** (2× worse than random) |
+| **affinity, per-layer, coordinated** | **+32.8 %**                           |
+| adversarial (upper bound)                  | −129.9 %                                   |
 
 The −100.6 % row is the instructive one: naive per-layer affinity clustering
 co-locates the popular experts (they co-occur with everything), cuts volume
@@ -84,24 +91,24 @@ python3 scripts/verify_live_invariance.py \
 python3 scripts/make_figures.py --workload logs/workload/qwen36
 ```
 
-| stage | question | Qwen1.5 (E=60,K=4) | Qwen3.6 (E=256,K=8) | Whittle (E=64,K=16) |
-|---|---|---|---|---|
-| Q1 | routing decoupled from placement/topology? | PASS, gate bit-exact | PASS, gate bit-exact | PASS, gate bit-exact |
-| Q2 | does routing carry workload structure? | PASS — 62.5 % category decoding (null 6.4 %) | PASS — **93.75 %** (null 6.0 %) | PASS — 89.6 % (null 5.8 %) |
-| Q3 | does placement change cost of fixed routing? | PASS — 3.7 % spread | PASS — 13.3 % spread | PASS — 3.2 % spread |
-| Q4 | does affinity beat random / load-balancing OOS? | PASS — +18.8 % | PASS — **+32.8 %** | PASS — **+19.3 %** (pooled only +1.7 %) |
-| Q5 | can OCS help after reconfiguration? | FAIL — no cross-pod traffic at EP=15 | conditional — 8.9 % under a small-pod assumption; plan Jaccard 0.09 | conditional — 8.6 % under a small-pod assumption; plan Jaccard 0.21 |
+| stage | question                                        | Qwen1.5 (E=60,K=4)                            | Qwen3.6 (E=256,K=8)                                                  | Whittle (E=64,K=16)                                                  |
+| ----- | ----------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Q1    | routing decoupled from placement/topology?      | PASS, gate bit-exact                          | PASS, gate bit-exact                                                 | PASS, gate bit-exact                                                 |
+| Q2    | does routing carry workload structure?          | PASS — 62.5 % category decoding (null 6.4 %) | PASS —**93.75 %** (null 6.0 %)                                | PASS — 89.6 % (null 5.8 %)                                          |
+| Q3    | does placement change cost of fixed routing?    | PASS — 3.7 % spread                          | PASS — 13.3 % spread                                                | PASS — 3.2 % spread                                                 |
+| Q4    | does affinity beat random / load-balancing OOS? | PASS — +18.8 %                               | PASS —**+32.8 %**                                             | PASS —**+19.3 %** (pooled only +1.7 %)                        |
+| Q5    | can OCS help after reconfiguration?             | FAIL — no cross-pod traffic at EP=15         | conditional — 8.9 % under a small-pod assumption; plan Jaccard 0.09 | conditional — 8.6 % under a small-pod assumption; plan Jaccard 0.21 |
 
 ### Model-dependence: pooled placement collapses with sparsity, coordinated does not
 
 Payoffs below are leave-categories-out, out-of-sample, vs the random null at
 EP=32 (`logs/workload/*/evidence_chain.json`):
 
-| model | E | K | K/E | per-layer load skew | global (layer-pooled) affinity | **coordinated per-layer** | naive per-layer |
-|---|---|---|---|---|---|---|---|
-| Qwen3.6-35B-A3B | 256 | 8 | 3.1 % | 10.54× uniform | +7.4 % | **+32.8 %** | −100.6 % |
-| Qwen1.5-MoE-A2.7B | 60 | 4 | 6.7 % | 1.64× uniform | — | +16.1 % (fanout-layer best +18.8 %) | +16.7 % |
-| Qwen3.8-Whittle | 64 | 16 | 25 % | 3.16× uniform | **+1.7 %** | **+19.3 %** | −78.8 % |
+| model             | E   | K  | K/E   | per-layer load skew | global (layer-pooled) affinity | **coordinated per-layer**     | naive per-layer |
+| ----------------- | --- | -- | ----- | ------------------- | ------------------------------ | ----------------------------------- | --------------- |
+| Qwen3.6-35B-A3B   | 256 | 8  | 3.1 % | 10.54× uniform     | +7.4 %                         | **+32.8 %**                   | −100.6 %       |
+| Qwen1.5-MoE-A2.7B | 60  | 4  | 6.7 % | 1.64× uniform      | —                             | +16.1 % (fanout-layer best +18.8 %) | +16.7 %         |
+| Qwen3.8-Whittle   | 64  | 16 | 25 %  | 3.16× uniform      | **+1.7 %**               | **+19.3 %**                   | −78.8 %        |
 
 Read the Whittle row carefully — it is the sharpest version of the paper's
 lesson. At K/E = 25 % fan-out is nearly saturated (`min(K,W) = 16` of 32
@@ -115,27 +122,27 @@ every regime (−78.8 % here).
 
 ### New modules
 
-| module | role |
-|---|---|
-| `src/serving/suite.py` | 112-prompt factorial workload: 12 categories, paraphrase sets (same meaning / different words), lexical controls (same words / different meaning), length ladders, identical-prompt repeats for the **noise floor** |
-| `scripts/capture_workload.py` | loads the model once, captures a trace per prompt + a manifest that is the design matrix |
-| `src/eval/trace_ir.py` | `CellTable` — the immutable canonical routing IR; per-layer expert namespaces are first-class |
-| `src/eval/affinity_graph.py` | 6 affinity definitions + a **load-preserving null** (popular experts co-occur because they are popular) |
-| `src/eval/specialization.py` | category decoding and MI with **run-level** permutation nulls (cell-level nulls inflate n by ~1000×) |
-| `src/eval/cost_model.py` | GPU→node→pod hierarchy, 3 dispatch modes, per-pair byte matrix, per-rank egress/ingress **bottleneck** |
-| `src/eval/placement_opt.py` | 11 placement generators incl. the coordinated per-layer optimiser and a bitset `IngressOracle` |
-| `src/eval/ocs_eval.py` | degree-bounded circuit planning, reconfiguration break-even, temporal stability at 3 timescales |
+| module                          | role                                                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/serving/suite.py`        | 112-prompt factorial workload: 12 categories, paraphrase sets (same meaning / different words), lexical controls (same words / different meaning), length ladders, identical-prompt repeats for the**noise floor** |
+| `scripts/capture_workload.py` | loads the model once, captures a trace per prompt + a manifest that is the design matrix                                                                                                                                 |
+| `src/eval/trace_ir.py`        | `CellTable` — the immutable canonical routing IR; per-layer expert namespaces are first-class                                                                                                                         |
+| `src/eval/affinity_graph.py`  | 6 affinity definitions + a**load-preserving null** (popular experts co-occur because they are popular)                                                                                                             |
+| `src/eval/specialization.py`  | category decoding and MI with**run-level** permutation nulls (cell-level nulls inflate n by ~1000×)                                                                                                               |
+| `src/eval/cost_model.py`      | GPU→node→pod hierarchy, 3 dispatch modes, per-pair byte matrix, per-rank egress/ingress**bottleneck**                                                                                                            |
+| `src/eval/placement_opt.py`   | 11 placement generators incl. the coordinated per-layer optimiser and a bitset`IngressOracle`                                                                                                                          |
+| `src/eval/ocs_eval.py`        | degree-bounded circuit planning, reconfiguration break-even, temporal stability at 3 timescales                                                                                                                          |
 
 ---
 
 ## Models
 
-| Model             | Experts | top-k | Role                                                   |
-| ----------------- | ------- | ----- | ------------------------------------------------------ |
-| Qwen3.6-35B-A3B   | 256     | 8     | primary: canonical traces, exported weights            |
-| Qwen1.5-MoE-A2.7B | 60      | 4     | hardware invariance (Phase 2), model control (Phase 3) |
+| Model             | Experts | top-k | Role                                                         |
+| ----------------- | ------- | ----- | ------------------------------------------------------------ |
+| Qwen3.6-35B-A3B   | 256     | 8     | primary: canonical traces                                    |
+| Qwen1.5-MoE-A2.7B | 60      | 4     | hardware invariance (Phase 2), model control (Phase 3)       |
 | Qwen3.8-Whittle   | 64      | 16    | K/E sparsity point: full workload chain (87 seq, 778k cells) |
-| Hy3               | —      | —    | additional real-model capture                          |
+| Hy3               | —      | —    | additional real-model capture                                |
 
 **Capture** (vLLM primary, MLX secondary; `--temp 0` = deterministic greedy; every backend validates the trace before saving):
 
@@ -164,11 +171,12 @@ $PY scripts/vllm_serve.py analyze logs/multi_tenant/run_burst_4t --plot      # c
 $PY scripts/vllm_serve.py affinity logs/multi_tenant/run_burst_4t --plot     # prompt families
 ```
 
-*One-time prep for on-rank simulation:* `python3 scripts/export_qwen_experts.py --model models/Qwen3.6-35B-A3B-4bit --output exported_qwen_weights --max-layers 1`
+*One-time prep for on-rank simulation (legacy plane):* `exported_qwen_weights/`
+has been archived out of the repo; regenerate with
+`python3 scripts/export_qwen_experts.py --model models/Qwen3.6-35B-A3B-4bit --output exported_qwen_weights --max-layers 1`
+if you replay through the legacy data plane.
 
 ## How a routing trace is captured
-
-![routing capture flow](routing_capture_flow.png)
 
 One pipeline, three phases. Entry points on the left spine, state on the right:
 
@@ -230,7 +238,7 @@ Placement decides *where* experts live — `placement.strategy`: `linear` (defau
 | ----- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | 1     | topology (3 fabrics) + expert/rank placement | token→expert bit-identical (computed); token→rank relabels (bound to rank+location); cost moves by tier | topology/placement-independent ✓           |
 | 2     | engine (MLX vs vLLM-metal)                   | prefill overlap 0.933, JS 1.1e-4, corr 0.998, hit-rate 1.0                                                | hardware-independent (up to noise floor) ✓ |
-| 3     | model (60e vs 256e)                          | per-layer load profile separates: Gini 0.32 vs 0.79, max-load 3.1× vs 15.4× uniform                       | presets are model-specific ✓               |
+| 3     | model (60e vs 256e)                          | per-layer load profile separates: Gini 0.32 vs 0.79, max-load 3.1× vs 15.4× uniform                     | presets are model-specific ✓               |
 
 ```bash
 ~/.venv-vllm-metal/bin/python scripts/verify_live_invariance.py            # live Phase-1 matrix
@@ -287,17 +295,16 @@ src/
 ├── comm/       all-to-all (per-pair byte accounting), transport, 3-tier topology, timeline export
 ├── ocs/        legacy α-β circuit model, affinity placement, preconfig, online controller
 ├── runtime/    worker, schedulers, placement tables, process groups
-├── data/       routing schema, MLX/vLLM capture, interventions
+├── data/       routing schema, MLX/vLLM capture
 ├── serving/    multi-tenant vLLM serving capture (engine, workload, affinity, analyze)
 ├── eval/       THE evidence chain: trace IR, affinity, specialization, cost model, placement opt, OCS eval
 └── utils/      timer, logging, seed
 configs/        qwen replay/OCS configs, EPS baseline, alpha/beta, affinity placement
 scripts/        capture, evidence chain (Q1–Q5), figures, verification gates, comparisons
 docs/           research assessment (start here), assumption ledger, research discussions
-data/           reference routing traces (vLLM-captured) + fine-tuning dataset
+data/           reference routing traces (vLLM-captured)
 logs/           workload captures + evidence chains, Phase 1–4 reports
 models/         MLX model weights
-adapters/       LoRA adapters
 ```
 
 ## Key design decisions

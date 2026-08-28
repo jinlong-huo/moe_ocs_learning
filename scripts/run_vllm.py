@@ -21,8 +21,8 @@ Usage:
 
     python run_vllm.py ablate --ablate-expert 3 12 --max-tokens 32
 
-Analyze / compare reuse the HF CLI (same trace schema):
-    python run_research.py analyze logs/routing_vllm.json
+Analyze / compare traces (same trace schema):
+    python3 scripts/compare_backend_traces.py --a logs/routing_vllm.json --b <other_trace>
 
 NOTE: vLLM is CUDA-only upstream. On Apple Silicon the vllm-metal plugin
 (https://github.com/vllm-project/vllm-metal) runs MLX-format models through

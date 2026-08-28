@@ -23,9 +23,6 @@ outputs/traces/merged_*.json
 *.pth
 
 # Generated/exported model artifacts (too large for git)
-exported_qwen_weights/
-exported_qwen_weights_lora/
-adapters/
 models
 
 # Runtime logs

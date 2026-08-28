@@ -1,7 +1,7 @@
 """Multi-process launcher: spawn N workers with torch.multiprocessing.
 
 Usage:
-  python -m src.launcher --config configs/synthetic_moe.yaml
+  python -m src.launcher --config configs/qwen_ocs_lite.yaml
 """
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def launch(config: dict, trace_dir: str = "outputs/traces") -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MoE Communication Research Launcher")
-    parser.add_argument("--config", type=str, default="configs/synthetic_moe.yaml",
+    parser.add_argument("--config", type=str, default="configs/qwen_ocs_lite.yaml",
                        help="Path to YAML config file")
     parser.add_argument("--trace-dir", type=str, default="outputs/traces",
                        help="Directory for Chrome Trace output")

@@ -1,6 +1,6 @@
 #!/bin/bash
 # End-to-end OCS preset pipeline on real Qwen weights
-# Capture affinity → compute plan → EPS baseline → OCS runtime → OCS preset → compare
+# Compute plan → EPS baseline → OCS runtime → OCS preset → compare
 #
 # Usage:
 #   bash scripts/run_preset_pipeline.sh
@@ -30,23 +30,8 @@ echo "Experts/rank:  $EXPERTS_PER_RANK"
 echo "Output dir:    $OUTPUT_DIR"
 echo ""
 
-# ---- Step 1: Validate affinity consistency ----
-echo "[Step 1/4] Validating affinity consistency..."
-if python3 scripts/validate_affinity.py \
-    --train-trace "$TRACE" \
-    --infer-trace "$TRACE" \
-    --num-experts $((WORLD_SIZE * EXPERTS_PER_RANK)) \
-    --top-k 2 \
-    --max-circuits "$MAX_CIRCUITS" \
-    --output "$OUTPUT_DIR/affinity_report.json" 2>&1; then
-    echo "  Affinity validation OK"
-else
-    echo "  WARNING: affinity validation may be incomplete (single trace used for both)"
-fi
-echo ""
-
-# ---- Step 2: Compute placement plan ----
-echo "[Step 2/4] Computing OCS circuit placement plan..."
+# ---- Step 1: Compute placement plan ----
+echo "[Step 1/3] Computing OCS circuit placement plan..."
 PLAN_PATH="$OUTPUT_DIR/preset_plan.json"
 python3 scripts/compute_preset_plan.py \
     --trace "$TRACE" \
@@ -56,8 +41,8 @@ python3 scripts/compute_preset_plan.py \
     --world-size "$WORLD_SIZE"
 echo ""
 
-# ---- Step 3A: Run EPS baseline (overlap mode, no OCS) ----
-echo "[Step 3A/4] Running EPS baseline (overlap, real Qwen experts)..."
+# ---- Step 2A: Run EPS baseline (overlap mode, no OCS) ----
+echo "[Step 2A/3] Running EPS baseline (overlap, real Qwen experts)..."
 EPS_TRACE_DIR="$OUTPUT_DIR/traces_eps_baseline"
 python3 -m src.launcher \
     --config configs/qwen_replay.yaml \
@@ -65,8 +50,8 @@ python3 -m src.launcher \
     2>&1 | tail -5
 echo ""
 
-# ---- Step 3B: Run OCS pipeline (runtime reconfig) ----
-echo "[Step 3B/4] Running OCS pipeline (runtime reconfig)..."
+# ---- Step 2B: Run OCS pipeline (runtime reconfig) ----
+echo "[Step 2B/3] Running OCS pipeline (runtime reconfig)..."
 OCS_TRACE_DIR="$OUTPUT_DIR/traces_ocs_runtime"
 python3 -m src.launcher \
     --config configs/qwen_ocs_pipeline.yaml \
@@ -74,9 +59,9 @@ python3 -m src.launcher \
     2>&1 | tail -5
 echo ""
 
-# ---- Step 3C: Run OCS preset ----
+# ---- Step 2C: Run OCS preset ----
 # Create a temporary config that points to the computed plan
-echo "[Step 3C/4] Running OCS preset (pre-configured circuits)..."
+echo "[Step 2C/3] Running OCS preset (pre-configured circuits)..."
 PRESET_TRACE_DIR="$OUTPUT_DIR/traces_ocs_preset"
 PRESET_CONFIG="$OUTPUT_DIR/ocs_preset_temp.yaml"
 
@@ -108,8 +93,8 @@ python3 -m src.launcher \
 rm -f "$PRESET_CONFIG"
 echo ""
 
-# ---- Step 4: Compare results ----
-echo "[Step 4/4] Comparing results..."
+# ---- Step 3: Compare results ----
+echo "[Step 3/3] Comparing results..."
 python3 -c "
 import json, os, glob
 

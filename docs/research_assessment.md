@@ -1,11 +1,10 @@
 # Research validity assessment — routing → affinity → placement → OCS
 
-Status: written against measured results from two real MoE models captured in
-this repository. Every number below is reproducible with the commands in
-§7. Where a claim rests on external literature rather than measurement it is
+Status: written against measured results from two real MoE models captured in this repository. Every number below is reproducible with the commands in §7. Where a claim rests on external literature rather than measurement it is
 marked **[lit]** and flagged if it needs verification.
 
 Artifacts:
+
 * `logs/workload/qwen15/` — Qwen1.5-MoE-A2.7B-Chat-4bit, E=60, K=4, 24 MoE
   layers, 112 sequences, 308,544 routing cells
 * `logs/workload/qwen36/` — Qwen3.6-35B-A3B-4bit, E=256, K=8, 40 MoE layers,
@@ -15,13 +14,7 @@ Artifacts:
 
 ## 1. Verdict in one paragraph
 
-The direction is defensible and there is a real, large effect to report — but
-**not the effect the original framing claimed**. The rank×rank all-to-all
-traffic matrix is 99.9 % rank-1, so there is essentially no *pairwise* traffic
-structure for a topology optimiser to exploit; the expert affinity graph does
-not shape the traffic matrix. What the affinity graph *does* do is reduce total
-dispatch volume by coalescing each token's destinations, and that is worth
-**32.8 % of the all-to-all critical path out-of-sample** on the 256-expert
+The direction is defensible and there is a real, large effect to report — but **not the effect the original framing claimed**. The rank×rank all-to-all traffic matrix is 99.9 % rank-1, so there is essentially no *pairwise* traffic structure for a topology optimiser to exploit; the expert affinity graph does not shape the traffic matrix. What the affinity graph *does* do is reduce total dispatch volume by coalescing each token's destinations, and that is worth **32.8 % of the all-to-all critical path out-of-sample** on the 256-expert
 model — but only under a formulation the original code did not have (per-layer
 placement, jointly balanced across layers). The naive version of the same idea
 is **2× worse than random**. OCS, meanwhile, is inapplicable at the scale these
@@ -64,23 +57,23 @@ more strongly than the original two-prompt comparison could show. Leave-one-
 sequence-out nearest-centroid decoding of the workload category from the
 routing signature alone:
 
-| model | classes | accuracy | permutation null | naive chance | p |
-|---|---|---|---|---|---|
-| Qwen1.5-MoE | 12 | **62.5 %** | 6.4 % | 8.3 % | 0.005 |
-| Qwen3.6-35B | 12 | **93.75 %** | 6.0 % | 8.3 % | 0.005 |
+| model       | classes | accuracy          | permutation null | naive chance | p     |
+| ----------- | ------- | ----------------- | ---------------- | ------------ | ----- |
+| Qwen1.5-MoE | 12      | **62.5 %**  | 6.4 %            | 8.3 %        | 0.005 |
+| Qwen3.6-35B | 12      | **93.75 %** | 6.0 %            | 8.3 %        | 0.005 |
 
 **A5 — The driver is semantics, not surface form.** This is the controlled
 result the two-prompt design structurally could not produce. Routing-signature
 cosine on Qwen1.5:
 
-| contrast | cosine | reading |
-|---|---|---|
-| identical prompt (noise floor) | 1.000 | measurement floor |
-| **paraphrase** (same meaning, minimal shared words) | **0.916** | 63 % of the way to the floor |
-| length ladder (same topic, 3 lengths) | 0.917 | not a length artifact |
-| same category | 0.822 | — |
-| **lexical control** (same template & words, different domain) | **0.817** | only 20 % of the way |
-| different category | 0.771 | baseline |
+| contrast                                                            | cosine          | reading                      |
+| ------------------------------------------------------------------- | --------------- | ---------------------------- |
+| identical prompt (noise floor)                                      | 1.000           | measurement floor            |
+| **paraphrase** (same meaning, minimal shared words)           | **0.916** | 63 % of the way to the floor |
+| length ladder (same topic, 3 lengths)                               | 0.917           | not a length artifact        |
+| same category                                                       | 0.822           | —                           |
+| **lexical control** (same template & words, different domain) | **0.817** | only 20 % of the way         |
+| different category                                                  | 0.771           | baseline                     |
 
 Paraphrase (0.916) ≫ lexical control (0.817) with non-overlapping 95 % CIs.
 Verdict: `semantic_dominant` on both models. Routing tracks meaning.
@@ -102,17 +95,17 @@ MoE layer. Optimising each layer independently minimises
 their hot spots onto the same ranks. Measured consequence on Qwen3.6 (EP=32,
 held-out categories):
 
-| placement | fan-out | network bytes | ingress imbalance | bottleneck vs random |
-|---|---|---|---|---|
-| random (the correct null) | 7.268 | 3.86 GB | 1.258 | 0 % |
-| linear (the deployed default) | 7.241 | 3.85 GB | 1.158 | +4.6 % |
-| load-balanced (LPT on pooled load) | 7.269 | 3.87 GB | 1.078 | +11.1 % |
-| affinity, layer-pooled | 6.579 | 3.50 GB | 1.267 | +7.4 % |
-| **affinity, per-layer, independent** | **4.846** | **2.58 GB** | **3.679** | **−100.6 %** |
-| load-balanced, per-layer, independent | 7.480 | 3.98 GB | 1.554 | −31.2 % |
-| **affinity, per-layer, coordinated** | — | — | — | **+32.8 %** |
-| direct bottleneck optimisation, coordinated | — | — | — | +31.1 % |
-| adversarial (max fan-out) | 7.325 | 3.90 GB | 2.810 | −129.9 % |
+| placement                                   | fan-out         | network bytes     | ingress imbalance | bottleneck vs random |
+| ------------------------------------------- | --------------- | ----------------- | ----------------- | -------------------- |
+| random (the correct null)                   | 7.268           | 3.86 GB           | 1.258             | 0 %                  |
+| linear (the deployed default)               | 7.241           | 3.85 GB           | 1.158             | +4.6 %               |
+| load-balanced (LPT on pooled load)          | 7.269           | 3.87 GB           | 1.078             | +11.1 %              |
+| affinity, layer-pooled                      | 6.579           | 3.50 GB           | 1.267             | +7.4 %               |
+| **affinity, per-layer, independent**  | **4.846** | **2.58 GB** | **3.679**   | **−100.6 %**  |
+| load-balanced, per-layer, independent       | 7.480           | 3.98 GB           | 1.554             | −31.2 %             |
+| **affinity, per-layer, coordinated**  | —              | —                | —                | **+32.8 %**    |
+| direct bottleneck optimisation, coordinated | —              | —                | —                | +31.1 %              |
+| adversarial (max fan-out)                   | 7.325           | 3.90 GB           | 2.810             | −129.9 %            |
 
 Read the fifth row carefully: naive per-layer affinity clustering cuts fan-out
 by 33 % and volume by 33 %, and is **twice as slow**, because it co-locates the
@@ -321,11 +314,11 @@ is not.
 holds 256 GPUs. Measured tier composition:
 
 | EP degree | nodes | pods (realistic) | cross-pod pairs |
-|---|---|---|---|
-| 15 | 2 | 1 | **0** |
-| 32 | 4 | 1 | **0** |
-| 64 | 8 | 1 | **0** |
-| 256 | 32 | 1 | **0** |
+| --------- | ----- | ---------------- | --------------- |
+| 15        | 2     | 1                | **0**     |
+| 32        | 4     | 1                | **0**     |
+| 64        | 8     | 1                | **0**     |
+| 256       | 32    | 1                | **0**     |
 
 At realistic pod sizes, **no expert-parallel degree these models can reach
 produces any cross-pod traffic at all**, so there is nothing for an optical
@@ -351,10 +344,10 @@ hundreds of microseconds**.
 
 Measured circuit-plan stability on Qwen3.6 (EP=32, multi_pod):
 
-| window | traffic-matrix cosine | **circuit-plan Jaccard** |
-|---|---|---|
-| per-request group | high | **0.095** |
-| per-layer | high | **0.109** |
+| window            | traffic-matrix cosine | **circuit-plan Jaccard** |
+| ----------------- | --------------------- | ------------------------------ |
+| per-request group | high                  | **0.095**                |
+| per-layer         | high                  | **0.109**                |
 
 Read this pair carefully, because the two columns say opposite things and both
 are true. The *traffic matrix* is stable across windows — consistent with C1, it
@@ -396,13 +389,13 @@ result. None of them is "we apply OCS to MoE and it is faster".
 
 Factorial, so that semantics and surface form can be separated:
 
-| role | n | purpose |
-|---|---|---|
-| 12 semantic categories × 6 | 72 | between-category contrasts; category decoding |
-| 5 paraphrase sets × 3 | 15 | same meaning, minimal shared words → tests semantics |
-| 4 lexical controls × 3 | 12 | same template & words, different domain → tests surface form |
-| 3 length ladders × 3 | 9 | rules out sequence-length artifacts |
-| identical-prompt repeats | 4 | **measurement noise floor** |
+| role                        | n  | purpose                                                       |
+| --------------------------- | -- | ------------------------------------------------------------- |
+| 12 semantic categories × 6 | 72 | between-category contrasts; category decoding                 |
+| 5 paraphrase sets × 3      | 15 | same meaning, minimal shared words → tests semantics         |
+| 4 lexical controls × 3     | 12 | same template & words, different domain → tests surface form |
+| 3 length ladders × 3       | 9  | rules out sequence-length artifacts                           |
+| identical-prompt repeats    | 4  | **measurement noise floor**                             |
 
 Categories: code generation, code debugging, math reasoning, science QA,
 history QA, factual recall, instruction following, creative writing,
@@ -442,18 +435,18 @@ which is what makes Q1 structural rather than asserted.
 
 ### 5.3 Experiment matrix — each axis independently variable
 
-| dimension | values |
-|---|---|
-| model | Qwen1.5-MoE (E=60,K=4), Qwen3.6-35B (E=256,K=8) |
-| workload | 12 categories + 3 control families |
-| EP degree | any divisor of E (2 … 64 swept) |
-| dispatch | REPLICATED, DEDUP_RANK, DEDUP_NODE |
-| placement | 11 kinds incl. random null and adversarial upper bound |
-| perturbation | swap_two, swap_many, full_permute, move_hottest, split_top_pair |
-| topology | single_node, single_pod, multi_pod, realistic |
-| OCS switch class | mems_10ms, mems_1ms, fast_10us, ideal_0 |
-| split | in-sample, within-category, leave-categories-out |
-| time window | per-request, per-token-range, per-layer |
+| dimension        | values                                                          |
+| ---------------- | --------------------------------------------------------------- |
+| model            | Qwen1.5-MoE (E=60,K=4), Qwen3.6-35B (E=256,K=8)                 |
+| workload         | 12 categories + 3 control families                              |
+| EP degree        | any divisor of E (2 … 64 swept)                                |
+| dispatch         | REPLICATED, DEDUP_RANK, DEDUP_NODE                              |
+| placement        | 11 kinds incl. random null and adversarial upper bound          |
+| perturbation     | swap_two, swap_many, full_permute, move_hottest, split_top_pair |
+| topology         | single_node, single_pod, multi_pod, realistic                   |
+| OCS switch class | mems_10ms, mems_1ms, fast_10us, ideal_0                         |
+| split            | in-sample, within-category, leave-categories-out                |
+| time window      | per-request, per-token-range, per-layer                         |
 
 ### 5.4 Statistical discipline
 
@@ -480,10 +473,12 @@ which is what makes Q1 structural rather than asserted.
 ## 6. Results summary
 
 ### Q1 routing invariance — **holds**
+
 Structural across 15 configurations (match rate 1.000, cost spread non-zero).
 Gate bit-exact across identical-prompt repeats on both models: noise floor 1.000.
 
 ### Q2 routing structure — **holds**
+
 Category decoding 62.5 % / 93.75 % vs ~6 % permutation null (p=0.005).
 Driver `semantic_dominant` on both. Affinity exceeds the load-preserving null
 (excess 1.60× on Qwen3.6). Per-expert specialisation 1.9 % (Qwen1.5) vs 23.7 %
@@ -492,11 +487,13 @@ saturated entropy comparison. Cross-layer load r = 0.004 / 0.011 confirms
 per-layer namespaces.
 
 ### Q3 placement changes cost — **holds**
+
 Routing bit-identical across all placements and 5 perturbation families;
 bottleneck spread 3.7 % / 13.3 %. Total volume exactly placement-invariant
 under REPLICATED (0.000 % spread) — the structural fact behind B2.
 
 ### Q4 affinity value — **holds, with the formulation caveat**
+
 Qwen3.6, leave-categories-out: `affinity_coordinated_layer` **+32.8 %**,
 direct bottleneck optimisation +31.1 %, load balancing alone +11.1 %,
 layer-pooled affinity +7.4 %, naive per-layer affinity **−100.6 %**.
@@ -506,6 +503,7 @@ Affinity graph transfers across held-out categories: Pearson **0.909**,
 top-1 % edge Jaccard 0.576, fan-out generalisation gap 0.85–1.54 %.
 
 ### Q5 OCS — **applicable only under a small-pod assumption; dynamic control not justified**
+
 Zero cross-pod traffic at realistic pod sizes for every EP degree tested.
 Under `multi_pod`: static fit-only OCS 8.87 % bottleneck reduction at zero
 reconfiguration cost. Circuit-plan Jaccard 0.095 (per-request) / 0.109
@@ -513,6 +511,7 @@ reconfiguration cost. Circuit-plan Jaccard 0.095 (per-request) / 0.109
 the design conclusion is a stabilised static plan.
 
 ### The model-dependence finding
+
 The exploitable structure depends on gating sparsity K/E and on EP degree.
 Qwen3.6 (K/E = 3.1 %) shows a large effect; Qwen3.8-Whittle (E=64, K=16,
 K/E = 25 %) shows **~0 %** for *global* affinity placement across every EP

@@ -23,7 +23,6 @@ Output structure:
 Usage:
     python3 scripts/export_qwen_experts.py \
         --model ./models/Qwen3.6-35B-A3B-4bit \
-        --adapter adapters/qwen3.6-moe-lora \
         --output exported_qwen_weights
 """
 

@@ -3,7 +3,7 @@ moe_run.py — MoE inference with per-layer, per-token routing capture (MLX back
 
 Loads a Qwen-MoE model via mlx_lm, instruments MoE blocks to log gate
 decisions, runs step-by-step generation, and saves a canonical
-RoutingTrace JSON (compatible with ``run_research.py analyze`` / ``compare``).
+RoutingTrace JSON (shared schema across all capture backends).
 
 Usage:
     python moe_run.py
