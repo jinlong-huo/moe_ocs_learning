@@ -333,10 +333,10 @@ def build_placement_manifest(
                 "intra_pod": cfg.intra_pod_latency_us,
                 "cross_pod": cfg.cross_pod_latency_us,
             },
-            "bandwidth_gbps": {
-                "intra_node": cfg.intra_node_bandwidth_gbps,
-                "intra_pod": cfg.intra_pod_bandwidth_gbps,
-                "cross_pod": cfg.cross_pod_bandwidth_gbps,
+            "bandwidth_gbs": {
+                "intra_node": cfg.intra_node_bandwidth_gbs,
+                "intra_pod": cfg.intra_pod_bandwidth_gbs,
+                "cross_pod": cfg.cross_pod_bandwidth_gbs,
             },
         }
     else:
@@ -355,6 +355,6 @@ def build_placement_manifest(
             "ranks_per_node": placement.world_size,
             "tiers_present": [0],  # INTRA_NODE only
             "latency_us": {"intra_node": 1.0, "intra_pod": 3.0, "cross_pod": 10.0},
-            "bandwidth_gbps": {"intra_node": 900.0, "intra_pod": 400.0, "cross_pod": 200.0},
+            "bandwidth_gbs": {"intra_node": 900.0, "intra_pod": 50.0, "cross_pod": 25.0},
         }
     return manifest

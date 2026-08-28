@@ -34,7 +34,7 @@ ocs:
   max_circuits: 32
   reconfig_time_us: 50.0
   circuit_latency_us: 1.0
-  circuit_bandwidth_gbps: 200.0
+  circuit_bandwidth_gbs: 25.0
   placement_strategy: round_robin
 
 runtime:

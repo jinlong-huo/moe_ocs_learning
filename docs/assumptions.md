@@ -75,8 +75,16 @@ python3 scripts/compare_model_affinity.py \
     --small logs/phase2/mlx/routing.json --large logs/phase3/large/routing.json
 ```
 
-**Result:** top-5 expert share 0.101 → 0.043, layer-diversity JS 0.123 →
-0.677, off-diagonal affinity strength 16× weaker. ✅
+**Result (per-layer statistics only).** The layer-pooled metrics originally
+reported here (top-5 expert share 0.101 → 0.043, layer-diversity JS
+0.123 → 0.677, off-diagonal affinity strength 16× weaker) are **saturated by
+construction** — expert ids are per-layer namespaces, so pooling averages
+unrelated distributions (C2/C4 in `docs/research_assessment.md`). They were
+discarded, not recalibrated. The per-layer profile separates the models far
+more strongly: mean layer Gini 0.316 vs 0.786, mean peak load 3.1× vs 15.4×
+uniform. ✅ Authoritative model separation on real workloads: Q2 category
+decoding (62.5 % vs 93.75 %) and per-expert category-KL (1.9 % vs 23.7 % of
+the log₂(12) bound).
 
 **Open:** affinity drift across quantization levels / fine-tuning checkpoints
 (declared in the design principles; not yet measured).
@@ -133,6 +141,15 @@ sequential baseline in `session_report.json`.
 
 ## A6 — OCS cost model: fixed delay over an authentic EPS fabric
 
+> ⚠️ **Superseded for research claims** (C5 in `docs/research_assessment.md`):
+> `α_ocs = α_eps + T_reconfig` makes a hot circuit exactly as fast as
+> electrical and a cold one strictly slower, so no experiment on this model
+> can show an OCS benefit that is not a scheduling artifact. The
+> research-grade model is tier promotion (`src/eval/ocs_eval.py` +
+> `src/eval/cost_model.py`): a circuit removes oversubscription for the pair
+> it serves. This entry describes the legacy data-plane model, retained for
+> reproducing prior results and for wall-clock replay.
+
 **Claim.** OCS should be simulated the way the field does it: every transfer
 pays the same tier-aware EPS cost as the electrical baseline, plus a *fixed*
 reconfiguration delay once per newly established circuit. Authenticity additionally requires the **circuit budget**: a real
@@ -151,8 +168,9 @@ beta = 3D-MEMS beam-steering (tens of µs mechanical motion + damping,
 T_reconfig ≈ 50 µs) with a single outgoing port — the port-limited switch
 serially re-points per destination, the authentic source of OCS
 reconfiguration pressure on all-to-all traffic. The EPS fabric itself uses
-field-cited numbers (NVLink/NVSwitch ~1 µs/900 GB/s, InfiniBand NDR
-~3 µs/400 Gb/s, core fabric ~10 µs/200 Gb/s).
+field-cited numbers (NVLink/NVSwitch ~1 µs / 900 GB/s, InfiniBand NDR
+~3 µs / 400 Gb/s = 50 GB/s, core fabric ~10 µs / 200 Gb/s = 25 GB/s —
+bandwidths are GB/s end-to-end; the C7 unit error is fixed).
 
 **Evidence.** `scripts/compare_ocs_models.py` runs EPS, alpha, and beta on
 the same 2×2×1 fabric with real Qwen weights + captured routing (report:

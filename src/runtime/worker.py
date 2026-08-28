@@ -132,9 +132,10 @@ def worker(
             intra_node_latency_us=topo_cfg.get("intra_node_latency_us", 1.0),
             intra_pod_latency_us=topo_cfg.get("intra_pod_latency_us", 3.0),
             cross_pod_latency_us=topo_cfg.get("cross_pod_latency_us", 10.0),
-            intra_node_bandwidth_gbps=topo_cfg.get("intra_node_bandwidth_gbps", 900.0),
-            intra_pod_bandwidth_gbps=topo_cfg.get("intra_pod_bandwidth_gbps", 400.0),
-            cross_pod_bandwidth_gbps=topo_cfg.get("cross_pod_bandwidth_gbps", 200.0),
+            # GB/s: 900 NVSwitch, 400 Gb/s NDR = 50, 200 Gb/s core = 25
+            intra_node_bandwidth_gbs=topo_cfg.get("intra_node_bandwidth_gbs", 900.0),
+            intra_pod_bandwidth_gbs=topo_cfg.get("intra_pod_bandwidth_gbs", 50.0),
+            cross_pod_bandwidth_gbs=topo_cfg.get("cross_pod_bandwidth_gbs", 25.0),
             delay_multiplier=topo_cfg.get("delay_multiplier", 1.0),
             # Rank -> physical location comes from the SAME placement object
             # that owns expert -> rank (single source of truth).
@@ -163,13 +164,14 @@ def worker(
                 max_circuits=ocs_cfg.get("max_circuits"),
                 reconfig_time_us=ocs_cfg.get("reconfig_time_us", 50.0),
                 circuit_latency_us=ocs_cfg.get("circuit_latency_us", 1.0),
-                circuit_bandwidth_gbps=ocs_cfg.get("circuit_bandwidth_gbps", 200.0),
+                circuit_bandwidth_gbs=ocs_cfg.get("circuit_bandwidth_gbs", 25.0),
                 placement_strategy=ocs_cfg.get("placement_strategy", "round_robin"),
             ),
             # The alpha-beta OCS model layers the fixed reconfig delay on top
             # of the SAME tier-aware EPS cost the electrical baseline pays.
             eps_topology=topology,
             world_size=world_size,
+            rank=rank,
         )
         ocs_pool = ocs_topology.pool
         log(rank, f"OCS alpha-beta: alpha_ocs = alpha_eps + "
@@ -512,7 +514,7 @@ def worker(
                 "max_circuits": ocs_cfg.get("max_circuits", 32),
                 "reconfig_time_us": ocs_cfg.get("reconfig_time_us", 50.0),
                 "circuit_latency_us": ocs_cfg.get("circuit_latency_us", 1.0),
-                "circuit_bandwidth_gbps": ocs_cfg.get("circuit_bandwidth_gbps", 200.0),
+                "circuit_bandwidth_gbs": ocs_cfg.get("circuit_bandwidth_gbs", 25.0),
                 "metrics": ocs_metrics,
             }
 

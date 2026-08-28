@@ -9,7 +9,7 @@ Models the three-tier network fabric found in real GPU clusters:
 
   Tier 1: Intra-pod (InfiniBand / RoCE)
     - Nodes within the same pod/rack connected via IB switch
-    - ~200-400 GB/s, ~1-5 us latency
+    - ~200-400 Gb/s per port (25-50 GB/s), ~1-5 us latency
     - All-to-all across nodes within a pod adds switch hop latency
 
   Tier 2: Cross-pod (IB fabric / Ethernet)
@@ -44,16 +44,22 @@ class TopologyConfig:
     """Configuration for hierarchical network topology.
 
     Authentic field numbers (the EPS baseline must be believable to the
-    networking community):
+    networking community). Bandwidths are in GB/s — the unit the delay
+    math actually divides in (1 GB/s = 1000 bytes/us):
       - Intra-node: NVLink 4 / NVSwitch — ~1 us, 900 GB/s switch bandwidth
         (NVIDIA DGX H100: 900 GB/s aggregated NVSwitch bisection)
-      - Intra-pod: InfiniBand NDR — ~3 us switch hop, 400 Gb/s per port
-        (Mellanox NDR 400Gb/s, ~1-3 us port-to-port)
-      - Cross-pod: spine/core fabric — ~10 us, 200 Gb/s per port
+      - Intra-pod: InfiniBand NDR — ~3 us switch hop, 400 Gb/s = 50 GB/s
+        per port (Mellanox NDR 400Gb/s, ~1-3 us port-to-port)
+      - Cross-pod: spine/core fabric — ~10 us, 200 Gb/s = 25 GB/s per port
         (aggregated core-switch hop; 100-400 Gb/s in deployed fabrics)
 
-    Delay = latency + tensor_bytes / (bandwidth_gbps × 1000 bytes/us).
+    Delay = latency + tensor_bytes / (bandwidth_gbs × 1000 bytes/us).
     All values are overridable in YAML.
+
+    Historical note (C7 in docs/research_assessment.md): these fields were
+    once named ``*_bandwidth_gbps``, documented as Gb/s, and divided as
+    GB/s — the inter-node tiers were modelled 8× faster than the cited
+    hardware. The rename makes the unit un-lie-able.
     """
     num_pods: int = 1
     nodes_per_pod: int = 1
@@ -65,9 +71,9 @@ class TopologyConfig:
     cross_pod_latency_us: float = 10.0
 
     # Per-tier bandwidth in GB/s (used for byte-dependent delay)
-    intra_node_bandwidth_gbps: float = 900.0
-    intra_pod_bandwidth_gbps: float = 400.0
-    cross_pod_bandwidth_gbps: float = 200.0
+    intra_node_bandwidth_gbs: float = 900.0
+    intra_pod_bandwidth_gbs: float = 50.0
+    cross_pod_bandwidth_gbs: float = 25.0
 
     # Multiplier applied to all delays (for scaling experiments)
     delay_multiplier: float = 1.0
@@ -151,14 +157,38 @@ class Topology:
             return LinkTier.INTRA_POD
         return LinkTier.INTRA_NODE
 
-    def get_max_tier(self, participating_ranks: list[int]) -> LinkTier:
-        """Find the highest (slowest) tier among a set of ranks."""
+    def get_max_tier(
+        self,
+        participating_ranks: list[int],
+        viewpoint_rank: Optional[int] = None,
+    ) -> LinkTier:
+        """Find the highest (slowest) tier among a set of ranks.
+
+        With ``viewpoint_rank`` set, the max is over (viewpoint, other) pairs —
+        the correct quantity for one rank's egress bottleneck. Without it, the
+        max is over every unordered pair in the set.
+
+        Historical note (C9 in docs/research_assessment.md): this used to
+        silently pin the viewpoint to ``participating_ranks[0]``, which made
+        the ``my_rank`` argument of ``get_delay`` dead and charged every rank
+        the worst tier from rank 0's viewpoint.
+        """
+        if viewpoint_rank is not None:
+            max_tier = LinkTier.INTRA_NODE
+            for other in participating_ranks:
+                if other == viewpoint_rank:
+                    continue
+                tier = self.get_link_tier(viewpoint_rank, other)
+                if tier > max_tier:
+                    max_tier = tier
+            return max_tier
+
         max_tier = LinkTier.INTRA_NODE
-        my_rank = participating_ranks[0] if participating_ranks else 0
-        for other in participating_ranks:
-            tier = self.get_link_tier(my_rank, other)
-            if tier > max_tier:
-                max_tier = tier
+        for i, a in enumerate(participating_ranks):
+            for b in participating_ranks[i + 1:]:
+                tier = self.get_link_tier(a, b)
+                if tier > max_tier:
+                    max_tier = tier
         return max_tier
 
     # -- Delay computation -----------------------------------------------
@@ -171,13 +201,12 @@ class Topology:
     ) -> float:
         """Compute delay in microseconds for a collective involving all ranks.
 
-        For a global all-to-all, the bottleneck is the worst-tier link
-        among all participating rank pairs. This function finds the max
-        tier between my_rank and every other rank, then computes:
-          delay = (latency_us + tensor_bytes / (bandwidth_gbps * 125)) * multiplier
+        The bottleneck is the worst-tier link from *this* rank's viewpoint
+        (its egress). This finds the max tier between my_rank and every
+        other rank, then computes:
+          delay = (latency_us + tensor_bytes / (bandwidth_gbs * 1000)) * multiplier
 
-        The 125 factor converts GB/s to bytes/us: 1 GB/s = 1e9 bytes/s = 1000 bytes/us.
-        So bytes / (bandwidth_gbps * 1e9 / 1e6) = bytes / (bandwidth_gbps * 1000).
+        Unit conversion: 1 GB/s = 1e9 bytes/s = 1000 bytes/us (1e9 / 1e6).
 
         Args:
             my_rank: this rank's ID
@@ -187,25 +216,22 @@ class Topology:
         Returns:
             Delay in microseconds
         """
-        # Find the worst link tier
+        # Find the worst link tier from this rank's viewpoint
         participating = list(range(world_size))
-        max_tier = self.get_max_tier(participating)
+        max_tier = self.get_max_tier(participating, viewpoint_rank=my_rank)
 
         # Get tier-specific parameters
         if max_tier == LinkTier.INTRA_NODE:
             latency = self.config.intra_node_latency_us
-            bw = self.config.intra_node_bandwidth_gbps
+            bw = self.config.intra_node_bandwidth_gbs
         elif max_tier == LinkTier.INTRA_POD:
             latency = self.config.intra_pod_latency_us
-            bw = self.config.intra_pod_bandwidth_gbps
+            bw = self.config.intra_pod_bandwidth_gbs
         else:
             latency = self.config.cross_pod_latency_us
-            bw = self.config.cross_pod_bandwidth_gbps
+            bw = self.config.cross_pod_bandwidth_gbs
 
-        # Bandwidth-dependent component: bytes / (GB/s * 125 bytes/us per GB/s)
-        # Actually 1 GB/s = 1e9 bytes/s = 1000 bytes/us (since 1e9/1e6 = 1000)
-        # Wait, 1 GB = 10^9 bytes. 1 second = 10^6 microseconds.
-        # So 1 GB/s = 10^9 bytes / 10^6 us = 1000 bytes/us.
+        # 1 GB/s = 10^9 bytes / 10^6 us = 1000 bytes/us
         bw_bytes_per_us = bw * 1000.0
         bw_delay = tensor_bytes / bw_bytes_per_us if bw_bytes_per_us > 0 else 0.0
 
@@ -223,13 +249,13 @@ class Topology:
 
         if tier == LinkTier.INTRA_NODE:
             latency = self.config.intra_node_latency_us
-            bw = self.config.intra_node_bandwidth_gbps
+            bw = self.config.intra_node_bandwidth_gbs
         elif tier == LinkTier.INTRA_POD:
             latency = self.config.intra_pod_latency_us
-            bw = self.config.intra_pod_bandwidth_gbps
+            bw = self.config.intra_pod_bandwidth_gbs
         else:
             latency = self.config.cross_pod_latency_us
-            bw = self.config.cross_pod_bandwidth_gbps
+            bw = self.config.cross_pod_bandwidth_gbs
 
         bw_bytes_per_us = bw * 1000.0
         bw_delay = tensor_bytes / bw_bytes_per_us if bw_bytes_per_us > 0 else 0.0

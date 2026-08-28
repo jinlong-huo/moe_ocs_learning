@@ -25,9 +25,9 @@ topology:
   intra_node_latency_us: 1.0
   intra_pod_latency_us: 3.0
   cross_pod_latency_us: 10.0
-  intra_node_bandwidth_gbps: 900.0
-  intra_pod_bandwidth_gbps: 400.0
-  cross_pod_bandwidth_gbps: 200.0
+  intra_node_bandwidth_gbs: 900.0
+  intra_pod_bandwidth_gbs: 50.0
+  cross_pod_bandwidth_gbs: 25.0
 
 runtime:
   mode: "overlap"          # EPS: route -> scatter -> compute -> gather pipeline

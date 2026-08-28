@@ -16,6 +16,14 @@ added to alpha once per newly established circuit:
     alpha_ocs = alpha_eps + T_reconfig   (cold circuit)
     beta_ocs  = beta_eps                 (same fabric)
 
+⚠️ SUPERSEDED for research claims (C5 in docs/research_assessment.md):
+this alpha-adder formulation makes a hot circuit exactly as fast as
+electrical and a cold one strictly slower, so no experiment on it can
+show an OCS benefit that is not a scheduling artifact. The physically
+grounded mechanism (a circuit removes oversubscription — tier promotion)
+lives in `src/eval/ocs_eval.py` + `src/eval/cost_model.py`. This module
+is retained for the legacy data plane and for reproducing prior results.
+
 The switch is circuit-budget constrained (``max_circuits`` = ports or
 wavelengths per rank): when the budget is exhausted the oldest circuit is
 reassigned (FIFO port reassignment) and pays T_reconfig. With
@@ -70,12 +78,14 @@ class FixedDelayCircuitPool:
         world_size: int = 1,
         max_circuits: Optional[int] = None,  # per-rank circuit budget (ports)
         circuit_latency_us: float = 1.0,     # flat-path alpha when no topology
-        circuit_bw_gbps: float = 200.0,      # flat-path beta when no topology
+        circuit_bw_gbs: float = 25.0,        # flat-path beta when no topology (GB/s)
+        rank: int = 0,                       # owning rank (spawn-isolated pool)
     ):
         self.reconfig_time_us = reconfig_time_us
         self.topology = topology
         self.circuit_latency_us = circuit_latency_us
-        self.circuit_bw_gbps = circuit_bw_gbps
+        self.circuit_bw_gbs = circuit_bw_gbs
+        self.rank = rank
         if max_circuits is None:
             max_circuits = max(1, world_size - 1)
         if max_circuits < 1:
@@ -136,18 +146,29 @@ class FixedDelayCircuitPool:
     def pre_config(self, plan: list, current_time_ns: int = 0) -> int:
         """Batch-establish circuits from a pre-computed placement plan.
 
-        Establishes plan circuits up to the per-rank budget (no overflow).
-        Used by preset mode: the reconfig cost is paid before inference
-        begins, so it does not appear on the inference-time critical path.
+        The plan is GLOBAL (rank, rank, score) triples but each spawned
+        process owns a per-rank pool, so only circuits with
+        ``src == self.rank`` are established here — historically (C12 in
+        docs/research_assessment.md) this filter was missing and a rank
+        could burn its entire port budget on circuits ``(other, dst)``
+        that its own transport never queries.
+
+        Reconfiguration cost is accounted through ``establish()`` (it lands
+        in ``metrics.total_reconfig_time_us``) but is NOT slept on: preset
+        mode pays it before inference begins, off the critical path.
+
+        Establishes circuits up to the per-rank budget (no overflow).
         """
         established = 0
         for src, dst, _score in plan:
-            if len(self._circuits) >= self.max_circuits:
-                break
+            if src != self.rank:
+                continue
             if (src, dst) in self._circuits:
                 continue
-            self._circuits[(src, dst)] = current_time_ns
-            self.metrics.circuit_establishes += 1
+            if len(self._circuits) >= self.max_circuits:
+                break
+            # Account the cold-circuit reconfig (no sleep: off critical path).
+            self.establish(src, dst, current_time_ns)
             established += 1
         return established
 
@@ -172,7 +193,7 @@ class FixedDelayCircuitPool:
         if self.topology is not None:
             eps_delay = self.topology.get_pairwise_delay(src, dst, tensor_bytes)
         else:
-            bw_bytes_per_us = self.circuit_bw_gbps * 1000.0
+            bw_bytes_per_us = self.circuit_bw_gbs * 1000.0
             eps_delay = self.circuit_latency_us
             if bw_bytes_per_us > 0 and tensor_bytes > 0:
                 eps_delay += tensor_bytes / bw_bytes_per_us

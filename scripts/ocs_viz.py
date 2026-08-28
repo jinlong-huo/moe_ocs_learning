@@ -66,7 +66,10 @@ def load_ocs_data(paths: list[str]) -> dict:
                     "max_circuits": ocs_meta.get("max_circuits"),
                     "reconfig_time_us": ocs_meta.get("reconfig_time_us"),
                     "circuit_latency_us": ocs_meta.get("circuit_latency_us"),
-                    "circuit_bandwidth_gbps": ocs_meta.get("circuit_bandwidth_gbps"),
+                    "circuit_bandwidth_gbs": ocs_meta.get(
+                        "circuit_bandwidth_gbs",
+                        ocs_meta.get("circuit_bandwidth_gbps"),
+                    ),
                 }
 
         mode = meta.get("mode", mode)

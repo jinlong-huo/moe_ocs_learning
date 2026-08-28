@@ -34,7 +34,8 @@ class OcsTopologyConfig:
                           beam-steering class)
         circuit_latency_us: flat optical-path alpha (used when the 3-tier
                             topology is disabled)
-        circuit_bandwidth_gbps: flat optical-path beta (1/BW; same)
+        circuit_bandwidth_gbs: flat optical-path beta (1/BW), in GB/s —
+                               200 Gb/s core-tier port = 25 GB/s
         placement_strategy: "round_robin" (default) or "affinity"
                             (expert co-activation aware)
     """
@@ -42,7 +43,7 @@ class OcsTopologyConfig:
     max_circuits: Optional[int] = None
     reconfig_time_us: float = 50.0
     circuit_latency_us: float = 1.0
-    circuit_bandwidth_gbps: float = 200.0
+    circuit_bandwidth_gbs: float = 25.0
     placement_strategy: str = "round_robin"
 
 
@@ -65,6 +66,7 @@ class OcsTopology:
         config: OcsTopologyConfig,
         eps_topology=None,
         world_size: int = 1,
+        rank: int = 0,
     ):
         self.config = config
         self.pool: Optional[FixedDelayCircuitPool] = None
@@ -75,7 +77,8 @@ class OcsTopology:
                 world_size=world_size,
                 max_circuits=config.max_circuits,
                 circuit_latency_us=config.circuit_latency_us,
-                circuit_bw_gbps=config.circuit_bandwidth_gbps,
+                circuit_bw_gbs=config.circuit_bandwidth_gbs,
+                rank=rank,
             )
 
     @property

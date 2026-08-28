@@ -201,6 +201,10 @@ contended. `Topology.tier_matrix` now enforces exactly that.
 to every destination and took the max, overstating the bandwidth term by
 roughly `world_size`, and growing with padding. Replaced by a genuine per-pair
 byte matrix derived from routing cells.
+**FIXED** in the legacy data plane: `scatter_tokens`/`gather_tokens` now pass
+a per-destination byte map through `Transport.all_to_all(pair_bytes=...)`, and
+every delay mode (mixed EPS+OCS, OCS-only, topology) charges each destination
+only its own bytes.
 
 **C7 — Bandwidth unit error, 8× on two of three tiers.** `TopologyConfig`
 fields are named `*_bandwidth_gbps`, the docstrings cite Gb/s ("400 Gb/s per
@@ -208,6 +212,10 @@ port", "200 Gb/s per port"), and `get_pairwise_delay` divides by
 `bw * 1000.0`, i.e. treats them as GB/s. Inter-node tiers were therefore
 modelled 8× faster than the hardware cited. Same constants are duplicated in
 `src/runtime/placement.py:357` and `src/runtime/worker.py:129`.
+**FIXED** everywhere: fields renamed to `*_bandwidth_gbs` with honest GB/s
+values (900 / 50 / 25), configs and the placement-manifest serializer
+(`bandwidth_gbs`) updated, `src/ocs/circuit.py` flat path renamed and
+re-defaulted.
 
 **C8 — No congestion, capacity, or collective structure.** Cost was a
 stateless per-pair `α + β·n` maxed over peers — an infinitely wide NIC. An
@@ -221,6 +229,9 @@ capacity.
 its only caller passes `list(range(world_size))`, so `my_rank` is always 0 and
 every rank is charged the worst tier *from rank 0's viewpoint*. The `my_rank`
 argument to `get_delay` is dead.
+**FIXED**: `get_max_tier` takes an explicit `viewpoint_rank` (or computes the
+max over all pairs when none is given), and `get_delay` now passes its own
+`my_rank`.
 
 **C10 — Everything was in-sample.** The original `payoff` fitted the affinity
 graph and evaluated the placement on the same trace. Measured generalisation
@@ -243,6 +254,10 @@ the plan is global, a rank burns its port budget on circuits `(other, dst)`
 that its own transport never queries. With `max_circuits=1` the entire budget
 can be wasted. Also bypasses `establish()`, so preset-mode reconfiguration cost
 is exactly zero rather than merely off the critical path.
+**FIXED**: `pre_config` filters `src == self.rank` (the pool now knows its
+owning rank), respects the budget per own circuits, and routes through
+`establish()` so the reconfiguration time is accounted in the pool metrics
+while staying off the inference critical path.
 
 **C13 — Two prompts cannot separate three hypotheses.** The original design
 compared "why MoE needs routing" against "how gradient descent works". These
@@ -500,11 +515,24 @@ the design conclusion is a stabilised static plan.
 ### The model-dependence finding
 The exploitable structure depends on gating sparsity K/E and on EP degree.
 Qwen3.6 (K/E = 3.1 %) shows a large effect; Qwen3.8-Whittle (E=64, K=16,
-K/E = 25 %) shows **~0 %** for global affinity placement across every EP degree
-from 2 to 64, because fan-out is already saturated at `min(K,W)` and there is no
-room to coalesce. Since DeepSeek-V3-class models sit at K/E ≈ 3 % **[lit]**, the
-regime where this work applies is the one production models occupy — but the
-boundary must be stated, not hidden.
+K/E = 25 %) shows **~0 %** for *global* affinity placement across every EP
+degree from 2 to 64, because fan-out is already saturated at `min(K,W)` and
+there is no room to coalesce.
+
+**Update (full workload chain on Whittle, EP=32, 87 sequences, 778k cells —
+`logs/workload/whittle/evidence_chain.json`):** the "~0 %" applies to the
+layer-POOLED placement only. The coordinated per-layer formulation retains
+**+19.3 %** out-of-sample at 25 % sparsity (direct bottleneck optimisation
++19.1 %, pure load balancing +9.5 %, naive per-layer affinity −78.8 %,
+pooled affinity +1.7 %), with Q1–Q3 PASS (gate bit-exact, category decoding
+89.6 % vs 5.8 % null, spread 3.2 %) and Q5 conditional exactly as for
+Qwen3.6 (static OCS 8.6 % under the small-pod assumption, plan persistence
+0.21/0.14, inapplicable at realistic pod sizes). At high K/E the win comes
+from joint ingress balancing rather than destination coalescing — the
+regime caveat binds the pooled *method*, not the coordinated *formulation*.
+Since DeepSeek-V3-class models sit at K/E ≈ 3 % **[lit]**, the regime where
+this work applies is the one production models occupy — but the boundary
+must be stated, not hidden.
 
 ---
 
@@ -560,9 +588,11 @@ Outputs: `traces/*.json` (raw routing), `manifest.json` (design matrix),
    applicability boundary a contribution rather than a caveat.
 5. **Close the loop to wall-clock.** Every cost number here is from an
    analytical bottleneck model. The honest next step is to replay a fitted
-   placement through the existing `src/comm/all_to_all.py` data plane (after
-   fixing C6–C9) and confirm the predicted ordering survives on real hardware.
+   placement through the existing `src/comm/all_to_all.py` data plane and
+   confirm the predicted ordering survives on real hardware. *(The blocking
+   defects C6, C7, C9, C12 are now fixed in that data plane.)*
 6. **Do not repair the discarded metrics.** `load_entropy_norm`,
    `top5_expert_share`, `layer_diversity_mean_js`, `affinity_strength_offdiag`
    and pooled `js_divergence` are saturated by construction (C2). They should be
-   deleted, not recalibrated.
+   deleted, not recalibrated. *(Done: `scripts/compare_model_affinity.py` now
+   reports per-layer statistics only; the ledger's A2 entry is updated.)*

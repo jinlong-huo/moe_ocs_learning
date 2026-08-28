@@ -57,7 +57,12 @@ class Transport:
 
     # -- delay injection --------------------------------------------------
 
-    def _inject_delay(self, tensor_bytes: int = 0, target_ranks: Optional[list] = None) -> None:
+    def _inject_delay(
+        self,
+        tensor_bytes: int = 0,
+        target_ranks: Optional[list] = None,
+        pair_bytes: Optional[dict] = None,
+    ) -> None:
         """Inject synthetic communication delay.
 
         Four delay modes (checked in order of priority):
@@ -66,23 +71,32 @@ class Transport:
              (topology or flat). Requires path_resolver + target_ranks.
           2. OCS-only: uses the fixed-delay circuit pool for all pairs. Requires ocs_circuit_pool
              + target_ranks. (backward compatible)
-          3. Topology-aware: uses hierarchical network model (NVLink/IB/cross-pod).
+          3. Topology-aware: hierarchical network model (NVLink/IB/cross-pod).
           4. Flat delay: simple fixed delay + jitter.
 
         Args:
             tensor_bytes: total bytes in the tensor (for bandwidth modeling)
             target_ranks: list of destination rank IDs (required for OCS and
                           mixed modes, ignored otherwise)
+            pair_bytes: optional per-destination byte counts
+                        ({dest_rank: bytes}). When given, every destination is
+                        charged only the bytes actually addressed to it —
+                        the historical behaviour charged every destination the
+                        ENTIRE padded buffer and took the max, overstating the
+                        bandwidth term by roughly world_size (C6 in
+                        docs/research_assessment.md). Falls back to
+                        ``tensor_bytes`` for destinations missing from the map.
         """
-        # --- Mixed EPS+OCS transport (NEW, highest priority) ---
+        # --- Mixed EPS+OCS transport (highest priority) ---
         if self.path_resolver is not None and target_ranks is not None:
             current_ns = time.perf_counter_ns()
             max_delay_us = 0.0
             for dst in target_ranks:
                 if dst == self.rank:
                     continue
+                dst_bytes = pair_bytes.get(dst, tensor_bytes) if pair_bytes else tensor_bytes
                 delay_us = self.path_resolver.compute_delay(
-                    self.rank, dst, tensor_bytes, current_ns,
+                    self.rank, dst, dst_bytes, current_ns,
                 )
                 if delay_us > max_delay_us:
                     max_delay_us = delay_us
@@ -97,8 +111,9 @@ class Transport:
             for dst in target_ranks:
                 if dst == self.rank:
                     continue
+                dst_bytes = pair_bytes.get(dst, tensor_bytes) if pair_bytes else tensor_bytes
                 delay_us = self.ocs_circuit_pool.compute_delay(
-                    self.rank, dst, tensor_bytes, current_ns,
+                    self.rank, dst, dst_bytes, current_ns,
                 )
                 if delay_us > max_delay_us:
                     max_delay_us = delay_us
@@ -106,10 +121,22 @@ class Transport:
                 time.sleep(max_delay_us / 1_000_000.0)
             return
 
-        # --- Existing topology-aware delay ---
+        # --- Topology-aware delay ---
         if self.topology is not None and self._world_size is not None:
-            # Topology-aware delay
-            total = self.topology.get_delay(self.rank, self._world_size, tensor_bytes)
+            if pair_bytes and target_ranks:
+                # Per-pair accounting: each destination is charged its own
+                # bytes on its own tier; the collective completes when the
+                # slowest pair drains (egress bottleneck).
+                total = 0.0
+                for dst in target_ranks:
+                    if dst == self.rank:
+                        continue
+                    dst_bytes = pair_bytes.get(dst, tensor_bytes)
+                    d = self.topology.get_pairwise_delay(self.rank, dst, dst_bytes)
+                    if d > total:
+                        total = d
+            else:
+                total = self.topology.get_delay(self.rank, self._world_size, tensor_bytes)
             if total > 0:
                 time.sleep(total / 1_000_000.0)
             return
@@ -127,6 +154,7 @@ class Transport:
     def all_to_all(
         self, output_tensor: torch.Tensor, input_tensor: torch.Tensor,
         async_op: bool = False, active_ranks: Optional[list] = None,
+        pair_bytes: Optional[dict] = None,
     ):
         """All-to-all collective.  Optionally async for overlap mode.
 
@@ -139,6 +167,10 @@ class Transport:
                 When provided, delay is only injected for these ranks (not all).
                 When None (default), delay is injected for all ranks (backward compat).
                 This enables per-rank-pair metrics that reflect actual traffic patterns.
+            pair_bytes: optional {dest_rank: bytes} map for per-pair delay
+                accounting (see _inject_delay). Callers that know their
+                per-destination message sizes should pass it; without it the
+                whole padded buffer size is charged to every destination.
         """
         if self.timer:
             self.timer.start("comm/all_to_all", async_op=async_op)
@@ -150,7 +182,8 @@ class Transport:
             target_ranks = active_ranks
         else:
             target_ranks = list(range(dist.get_world_size())) if dist.is_initialized() else []
-        self._inject_delay(tensor_bytes=tensor_bytes, target_ranks=target_ranks)
+        self._inject_delay(tensor_bytes=tensor_bytes, target_ranks=target_ranks,
+                           pair_bytes=pair_bytes)
 
         handle = dist.all_to_all_single(output_tensor, input_tensor, async_op=async_op)
         if self.timer and not async_op:

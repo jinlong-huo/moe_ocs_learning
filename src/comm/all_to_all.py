@@ -146,10 +146,20 @@ def scatter_tokens(
         if send_counts[r].item() > 0 or recv_counts[r].item() > 0
     ))
 
+    # 5c. Per-pair byte counts: each destination is charged only the rows
+    #     actually addressed to it (one row = pack_dim float32 values), not
+    #     the whole padded buffer (C6 fix — see docs/research_assessment.md).
+    row_bytes = pack_dim * send_buf.element_size()
+    pair_bytes = {
+        dest_r: int(send_counts[dest_r].item()) * row_bytes
+        for dest_r in range(world_size) if send_counts[dest_r].item() > 0
+    }
+
     # 6. All-to-all
     recv_buf = torch.zeros_like(send_buf)
     handle = transport.all_to_all(
         recv_buf, send_buf, async_op=async_op, active_ranks=active_ranks,
+        pair_bytes=pair_bytes,
     )
 
     result = _build_dispatch_result(
@@ -280,11 +290,19 @@ def gather_tokens(
         if gather_send_counts[r].item() > 0 or gather_recv_counts[r].item() > 0
     ))
 
+    # 5c. Per-pair byte counts for the gather direction too (C6 fix).
+    gather_row_bytes = pack_dim * gather_send_buf.element_size()
+    gather_pair_bytes = {
+        dest_r: int(gather_send_counts[dest_r].item()) * gather_row_bytes
+        for dest_r in range(world_size) if gather_send_counts[dest_r].item() > 0
+    }
+
     # 6. All-to-all back
     gather_recv_buf = torch.zeros_like(gather_send_buf)
     handle = transport.all_to_all(
         gather_recv_buf, gather_send_buf, async_op=async_op,
         active_ranks=gather_active_ranks,
+        pair_bytes=gather_pair_bytes,
     )
 
     if async_op:
