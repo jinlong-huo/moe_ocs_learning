@@ -157,8 +157,8 @@ python scripts/run_vllm.py run --model ./models/Qwen3.6-35B-A3B-4bit --max-token
 python scripts/run_vllm.py run --model ./models/Qwen3.8-Whittle-MoE-27B-A17.8B-4bit --max-tokens 256 --temp 0
 
 # MLX (secondary)
-.venv/bin/python moe_run.py --model models/Qwen3.6-35B-A3B-4bit --max-tokens 128 --temp 0
-.venv/bin/python moe_run.py --model models/Qwen3.8-Whittle-MoE-27B-A17.8B-4bit --max-tokens 128 --temp 0
+.venv/bin/python scripts/moe_run.py --model models/Qwen3.6-35B-A3B-4bit --max-tokens 128 --temp 0
+.venv/bin/python scripts/moe_run.py --model models/Qwen3.8-Whittle-MoE-27B-A17.8B-4bit --max-tokens 128 --temp 0
 
 # workload-suite capture for the evidence chain (any MoE model)
 python3 scripts/capture_workload.py --model models/Qwen3.8-Whittle-MoE-27B-A17.8B-4bit \

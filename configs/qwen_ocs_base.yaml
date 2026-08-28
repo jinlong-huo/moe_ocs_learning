@@ -12,7 +12,7 @@
 #          --output exported_qwen_weights --max-layers 1
 #
 #   2. Capture routing trace:
-#      python moe_run.py --model models/Qwen3.6-35B-A3B-4bit \
+#      python scripts/moe_run.py --model models/Qwen3.6-35B-A3B-4bit \
 #          --prompt "Explain MoE routing." --max-tokens 128
 #
 #   3. Run simulation:

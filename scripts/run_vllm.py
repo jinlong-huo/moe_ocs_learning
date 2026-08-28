@@ -12,7 +12,7 @@ Usage:
         --prompt "Explain MoE routing." \\
         --max-tokens 64
 
-    # With the dense guide-model affinity prior (same as moe_run.py):
+    # With the dense guide-model affinity prior (same as scripts/moe_run.py):
     python run_vllm.py run --model Qwen/Qwen3.6-35B-A3B \\
         --guide-model Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled \\
         --max-tokens 64
@@ -101,7 +101,7 @@ def _add_common_args(p: argparse.ArgumentParser) -> None:
                    help="Disable CUDA-graph capture (required for routing hooks to fire)")
     p.add_argument("--guide-model", type=str, default=None,
                    help="HF-format dense generalised model for affinity graph prior "
-                        "(captures last-layer hidden states, same as moe_run.py)")
+                        "(captures last-layer hidden states, same as scripts/moe_run.py)")
 
 
 # ═══════════════════════════════════════════════════════════════════

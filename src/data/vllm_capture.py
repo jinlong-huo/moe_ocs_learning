@@ -440,7 +440,7 @@ def get_vllm_layout(llm, capture: VllmRoutingCapture) -> dict:
 #
 # vllm-metal executes the raw MLX model (mlx_lm), not torch modules, so the
 # torch hooks above cannot fire. These hooks monkey-patch the MLX MoE block
-# instead — the same technique as the MLX backend in moe_run.py.
+# instead — the same technique as the MLX backend in scripts/moe_run.py.
 #
 # Positions: with a single request and in-order execution (no prefix-cache
 # reuse, chunked prefill only for large prompts), every token passes through

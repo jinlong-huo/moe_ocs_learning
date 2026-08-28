@@ -6,10 +6,10 @@ decisions, runs step-by-step generation, and saves a canonical
 RoutingTrace JSON (shared schema across all capture backends).
 
 Usage:
-    python moe_run.py
+    python scripts/moe_run.py
         Uses Qwen3.6-35B-A3B-4bit (MoE, top-4) by default.
 
-    python moe_run.py --model ./models/Qwen3.6-35B-A3B-4bit
+    python scripts/moe_run.py --model ./models/Qwen3.6-35B-A3B-4bit
 
 Output:
     logs/routing.json — schema-compatible routing trace (same format as HF backend)
@@ -17,6 +17,13 @@ Output:
 
 import argparse
 from pathlib import Path
+import sys
+
+# Make the repo root importable so ``from src.data...`` resolves regardless of
+# the CWD used to invoke this script.
+_proj_root = Path(__file__).resolve().parent.parent
+if str(_proj_root) not in sys.path:
+    sys.path.insert(0, str(_proj_root))
 
 import mlx.core as mx
 from mlx_lm import load
