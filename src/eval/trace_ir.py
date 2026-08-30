@@ -14,23 +14,6 @@ The central object is ``CellTable``: the flat relation
                                                 weight_0..weight_{K-1})
 
 one row per *routing cell*, i.e. per (sequence, token, MoE layer).
-
-Two correctness points the previous code got wrong
-──────────────────────────────────────────────────
-1. **Expert ids are PER-LAYER namespaces.**  Expert 5 of layer 3 and expert 5
-   of layer 30 are different weight matrices computed by different gates.
-   Measured on a real trace, per-layer expert-load vectors are essentially
-   uncorrelated across layers (Pearson r ~ 0.01).  Pooling all layers into one
-   ``num_experts``-wide histogram therefore averages ~L unrelated
-   distributions and drives every distributional metric toward uniform — which
-   is why two semantically distant prompts previously reported a
-   Jensen-Shannon divergence of 0.005.  ``CellTable`` keeps ``layer`` as a
-   first-class key and every statistic has an explicit ``per_layer`` form.
-
-2. **Placement may be per-layer.**  Nothing in expert parallelism forces every
-   layer to share one expert->rank map.  ``GLOBAL`` and ``PER_LAYER`` placement
-   scopes are both first-class here, and the per-layer scope turns out to be
-   where essentially all of the exploitable structure lives.
 """
 
 from __future__ import annotations

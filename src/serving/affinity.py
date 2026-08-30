@@ -11,10 +11,30 @@ Metric definitions follow ``moe_ocs_learning/src/eval/affinity_consistency.py``:
   * top-k overlap    — per-(position, layer) expert-set match rate
   * Jaccard          — expert-set overlap per layer
   * JS divergence    — Jensen-Shannon distance of aggregate expert
-                       distributions (0 = identical)
+                        distributions (0 = identical)
   * affinity corr    — Pearson R between expert co-activation matrices
   * plan hit-rate    — fraction of tenant B's routing cells fully covered
-                       by tenant A's expert set (an OCS preset plan)
+                        by tenant A's expert set (an OCS preset plan)
+
+Weight-aware metrics (``pairwise_metrics(..., weight_aware=True)``): the set
+metrics above collapse routing to set identity, so they cannot distinguish
+"same experts, same emphasis" from "same experts, different emphasis" and
+price a marginal-expert flip as a total miss. The weight-aware metrics
+compare the per-cell routing *mass* instead:
+
+  * mass intersection — mean Σ min(p_a, p_b) over aligned cells (= 1 − TV
+                        distance); a marginal flip costs its gate mass, ~0
+  * EMD               — mean 1-D earth-mover's distance Σ|CDF_a − CDF_b|
+                        over the expert-id axis; prices near-misses
+                        proportionally instead of all-or-nothing
+  * Bhattacharyya     — mean Σ √(p_a·p_b); expected routing-mass agreement
+  * matched weight MAE / cosine — weight-vector fidelity on cells whose
+                        expert sets match; separates "same experts" from
+                        "same emphasis"
+
+``repeat_noise_floor`` computes the same metrics among identical-prompt
+repeat traces (role="repeat"), yielding per-backend noise floors so any
+cross-backend number can be reported as a calibrated z-score.
 
 Known calibration: on the Metal backend the 4th (marginal) expert flips on
 near-ties under identical inputs (~5-6% of cells, numerical noise from the
@@ -25,6 +45,7 @@ whose identical-input baseline is 1.0.
 from __future__ import annotations
 
 import json
+from itertools import combinations
 from pathlib import Path
 
 import numpy as np
@@ -128,15 +149,100 @@ def used_expert_set(trace) -> set[int]:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Weight-aware cell metrics
+# ═══════════════════════════════════════════════════════════════════
+
+def _clip_pairs(experts, weights, k: int):
+    """First-k (expert, weight) pairs with valid expert ids, zipped."""
+    pairs = [
+        (int(e), float(w))
+        for e, w in zip(list(experts)[:k], list(weights)[:k])
+        if int(e) >= 0
+    ]
+    if not pairs:
+        return [], []
+    es, ws = zip(*pairs)
+    return list(es), list(ws)
+
+
+def _cell_dist(experts, weights, num_experts: int) -> np.ndarray:
+    """Dense [E] routing-mass distribution for one cell.
+
+    Selected experts carry their raw top-k softmax mass; the residual
+    ``1 - Σw`` (the gate mass of all non-selected experts, recoverable
+    because the logged weights are *un-renormalized* top-k softmax masses)
+    is spread uniformly over the unselected experts — the maximally
+    agnostic assumption when only top-k is logged.  Renormalized gates
+    (``norm_topk_prob``, Σw ≈ 1) degrade gracefully to their own support.
+    """
+    p = np.zeros(num_experts, dtype=np.float64)
+    mask = np.zeros(num_experts, dtype=bool)
+    for e, w in zip(experts, weights):
+        if 0 <= e < num_experts:
+            p[e] += w
+            mask[e] = True
+    total = float(p.sum())
+    if total <= 0.0:
+        return np.full(num_experts, 1.0 / max(num_experts, 1))
+    if total > 1.0:
+        # Renormalized weights (or fp rounding): already a full distribution.
+        return p / total
+    n_unsel = int((~mask).sum())
+    if n_unsel <= 0:
+        return p / total
+    p[~mask] += (1.0 - total) / n_unsel
+    return p
+
+
+def _mass_metrics(pa: np.ndarray, pb: np.ndarray) -> tuple[float, float, float]:
+    """(histogram intersection, 1-D EMD, Bhattacharyya) of two cell dists.
+
+    EMD uses the L1 ground distance on the expert-id axis — the standard
+    closed form Σ|CDF_a − CDF_b|.  Expert-id distance is a namespace
+    convention, not a semantic metric; it is kept because it prices a
+    near-miss smoothly where set-Jaccard charges a total miss.
+    """
+    inter = float(np.minimum(pa, pb).sum())
+    emd = float(np.abs(np.cumsum(pa) - np.cumsum(pb)).sum())
+    bhatt = float(np.sqrt(np.maximum(pa * pb, 0.0)).sum())
+    return inter, emd, bhatt
+
+
+def _matched_weight_metrics(ea, wa, eb, wb) -> tuple[float, float]:
+    """(MAE, cosine) of weight vectors aligned by shared expert id.
+
+    Only meaningful on set-matched cells; caller guarantees the sets are
+    equal and non-empty.
+    """
+    wa_by = dict(zip(ea, wa))
+    wb_by = dict(zip(eb, wb))
+    shared = sorted(set(wa_by) & set(wb_by))
+    if not shared:
+        return 0.0, 1.0
+    va = np.asarray([wa_by[e] for e in shared], dtype=np.float64)
+    vb = np.asarray([wb_by[e] for e in shared], dtype=np.float64)
+    mae = float(np.abs(va - vb).mean())
+    na, nb = float(np.linalg.norm(va)), float(np.linalg.norm(vb))
+    cos = float(va @ vb / (na * nb)) if na > 1e-12 and nb > 1e-12 else 1.0
+    return mae, cos
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Pairwise metrics
 # ═══════════════════════════════════════════════════════════════════
 
 def pairwise_metrics(trace_a, trace_b, num_experts: int, layers: list[str],
-                     top_k: int, k_compare: int | None = None) -> dict:
+                     top_k: int, k_compare: int | None = None,
+                     weight_aware: bool = False) -> dict:
     """All affinity metrics between two traces.
 
     ``k_compare`` compares only the first k experts of each cell
     (e.g. top-(k-1)) — the marginal expert is numerically noisy on Metal.
+
+    ``weight_aware=True`` additionally computes the mass-based metrics
+    (intersection / EMD / Bhattacharyya per aligned cell, and weight-vector
+    fidelity on set-matched cells).  The keys it adds are the ones that can
+    answer "same experts AND same emphasis?" rather than set identity only.
     """
     k = top_k if k_compare is None else k_compare
 
@@ -210,7 +316,7 @@ def pairwise_metrics(trace_a, trace_b, num_experts: int, layers: list[str],
             hits += 1
     plan_hit_rate = hits / (len(cells_b) or 1)
 
-    return {
+    result = {
         "cells_common": len(common),
         "tokens_common": len(tok_common),
         "topk_overlap": round(topk_overlap, 5),
@@ -222,6 +328,112 @@ def pairwise_metrics(trace_a, trace_b, num_experts: int, layers: list[str],
         "affinity_correlation": round(corr, 5),
         "plan_hit_rate": round(plan_hit_rate, 5),
     }
+
+    # ── weight-aware: compare routing mass, not just set identity ──
+    if weight_aware:
+        inter_sum = emd_sum = bhatt_sum = 0.0
+        matched = 0
+        mae_sum = cos_sum = 0.0
+        for key in common:
+            ea, wa = _clip_pairs(key_a[key][0], key_a[key][1], k)
+            eb, wb = _clip_pairs(key_b[key][0], key_b[key][1], k)
+            if not ea or not eb:
+                continue
+            pa = _cell_dist(ea, wa, num_experts)
+            pb = _cell_dist(eb, wb, num_experts)
+            inter, emd, bhatt = _mass_metrics(pa, pb)
+            inter_sum += inter
+            emd_sum += emd
+            bhatt_sum += bhatt
+            if set(ea) == set(eb):
+                mae, cos = _matched_weight_metrics(ea, wa, eb, wb)
+                mae_sum += mae
+                cos_sum += cos
+                matched += 1
+        n_w = len(common) or 1
+        result.update({
+            "mean_cell_mass_intersection": round(inter_sum / n_w, 5),
+            "mean_cell_emd": round(emd_sum / n_w, 5),
+            "mean_cell_bhattacharyya": round(bhatt_sum / n_w, 5),
+            "matched_cells": matched,
+            "matched_weight_mae":
+                round(mae_sum / matched, 5) if matched else None,
+            "matched_weight_cosine":
+                round(cos_sum / matched, 5) if matched else None,
+        })
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Noise floor from identical-prompt repeats
+# ═══════════════════════════════════════════════════════════════════
+
+def load_repeats(workload_dir: str | Path) -> list:
+    """Load the role='repeat' traces from a capture_workload output dir.
+
+    Repeats are identical prompts on the same backend (suite role
+    ``rep.noise.*``), so any metric difference among them is pure backend
+    measurement noise — quantized-GEMM nondeterminism and gate near-ties.
+    """
+    from src.data.routing_schema import RoutingTrace
+
+    d = Path(workload_dir)
+    with open(d / "manifest.json") as f:
+        man = json.load(f)
+    out = []
+    for rec in man.get("records", []):
+        if rec.get("role") == "repeat":
+            out.append(RoutingTrace.load(d / rec["trace"]))
+    return out
+
+
+def repeat_noise_floor(traces: list, num_experts: int, top_k: int,
+                       k_compare: int | None = None,
+                       weight_aware: bool = True) -> dict:
+    """Per-metric noise floor from pairwise metrics among repeat traces.
+
+    Returns ``{"n_traces", "n_pairs", "metrics": {key: {mean, sd}}}``.
+    A cross-backend observation should be reported as a z-score against
+    the floor of the backend(s) it came from: an observation within the
+    floor is indistinguishable from that backend's own nondeterminism.
+    """
+    if len(traces) < 2:
+        return {"n_traces": len(traces), "n_pairs": 0, "metrics": {}}
+
+    layers = sorted({
+        lid
+        for t in traces
+        for r in t.routes
+        for lid in r.layers
+    })
+    pairs = list(combinations(traces, 2))
+    acc: dict[str, list[float]] = {}
+    for a, b in pairs:
+        m = pairwise_metrics(
+            a, b, num_experts, layers, top_k,
+            k_compare=k_compare, weight_aware=weight_aware,
+        )
+        for key, v in m.items():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                acc.setdefault(key, []).append(float(v))
+
+    metrics = {}
+    for key, xs in acc.items():
+        arr = np.asarray(xs, dtype=np.float64)
+        metrics[key] = {
+            "mean": round(float(arr.mean()), 6),
+            "sd": round(float(arr.std(ddof=1)) if arr.size > 1 else 0.0, 6),
+        }
+    return {"n_traces": len(traces), "n_pairs": len(pairs), "metrics": metrics}
+
+
+def z_score(observed: float, floor: dict) -> float | None:
+    """Standardised excess of ``observed`` over a repeat-noise floor."""
+    sd = floor.get("sd", 0.0)
+    if sd is None or sd <= 1e-12:
+        return None
+    return (observed - floor.get("mean", 0.0)) / sd
 
 
 # ═══════════════════════════════════════════════════════════════════

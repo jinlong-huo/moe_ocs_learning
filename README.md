@@ -5,8 +5,6 @@ actually lets you exploit on a 3-tier electrical fabric (EPS): expert
 placement, communication cost, and — as a bounded feasibility question —
 optical circuit switching (OCS).
 
-
-
 The configs folder holds the OCS settings; the data folder holds reference
 routing traces (vLLM-captured) that feed the evidence chain and the legacy
 replay plane. Training-stage artifacts (LoRA adapters, exported expert
