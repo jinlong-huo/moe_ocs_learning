@@ -15,13 +15,6 @@ Metric definitions follow ``moe_ocs_learning/src/eval/affinity_consistency.py``:
   * affinity corr    — Pearson R between expert co-activation matrices
   * plan hit-rate    — fraction of tenant B's routing cells fully covered
                         by tenant A's expert set (an OCS preset plan)
-
-Weight-aware metrics (``pairwise_metrics(..., weight_aware=True)``): the set
-metrics above collapse routing to set identity, so they cannot distinguish
-"same experts, same emphasis" from "same experts, different emphasis" and
-price a marginal-expert flip as a total miss. The weight-aware metrics
-compare the per-cell routing *mass* instead:
-
   * mass intersection — mean Σ min(p_a, p_b) over aligned cells (= 1 − TV
                         distance); a marginal flip costs its gate mass, ~0
   * EMD               — mean 1-D earth-mover's distance Σ|CDF_a − CDF_b|
@@ -31,15 +24,6 @@ compare the per-cell routing *mass* instead:
   * matched weight MAE / cosine — weight-vector fidelity on cells whose
                         expert sets match; separates "same experts" from
                         "same emphasis"
-
-``repeat_noise_floor`` computes the same metrics among identical-prompt
-repeat traces (role="repeat"), yielding per-backend noise floors so any
-cross-backend number can be reported as a calibrated z-score.
-
-Known calibration: on the Metal backend the 4th (marginal) expert flips on
-near-ties under identical inputs (~5-6% of cells, numerical noise from the
-quantized GEMM).  All metrics therefore also report a top-(k-1) variant,
-whose identical-input baseline is 1.0.
 """
 
 from __future__ import annotations
