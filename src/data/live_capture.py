@@ -66,7 +66,7 @@ def capture_live(
             "vllm-metal environment, e.g.: ~/.venv-vllm-metal/bin/python "
             f"(or install vllm). Original error: {e}"
         ) from e
-    from src.data.routing_schema import RoutingTrace
+    # from src.data.routing_schema import RoutingTrace
     from src.data.vllm_capture import (
         VllmRoutingCapture, install_vllm_hooks, install_vllm_metal_hooks,
         get_vllm_layout, locate_model,
