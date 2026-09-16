@@ -344,8 +344,16 @@ def _capped_cluster(A: np.ndarray, experts: np.ndarray, W: int,
 def make_placement(kind: str, fit: CellTable, world_size: int, *,
                    seed: int = 0, gpus_per_node: int = 8,
                    affinity_kind: str = "cooccurrence",
-                   n_sweeps: int = 4) -> Placement:
-    """Build one placement from a FIT slice of the workload."""
+                   n_sweeps: int = 4,
+                   topo=None, ocs_cfg=None,
+                   promote_max_evals_per_layer: int = 3000) -> Placement:
+    """Build one placement from a FIT slice of the workload.
+
+    ``topo``/``ocs_cfg`` are required only by ``promote_aware_layer``, which is
+    the one generator whose objective depends on the physical topology and the
+    optical circuit budget.  They are keyword-only and default to ``None`` so
+    that every existing caller keeps working unchanged.
+    """
     E, W = fit.num_experts, world_size
     if E % W:
         raise ValueError(f"E={E} not divisible by W={W}")
@@ -488,6 +496,29 @@ def make_placement(kind: str, fit: CellTable, world_size: int, *,
         return _check(Placement(np.stack(rows), W, "per_layer", layers=fit.layers,
                          name="adversarial"), W)
 
+    if kind == "promote_aware_layer":
+        # The co-design cell: placement scored on the bottleneck that REMAINS
+        # after the circuit plan is applied, with the plan re-derived as the
+        # placement moves (alternating optimisation).  Every other generator
+        # here optimises an electrical objective and is then paired with a plan
+        # fitted to whatever it produced, which is exactly the ordering this one
+        # exists to break.  See ``src/eval/promote_aware.py``.
+        from src.eval.promote_aware import promote_aware_placement
+        if topo is None or ocs_cfg is None:
+            raise ValueError(
+                "kind='promote_aware_layer' requires topo=<Topology> and "
+                "ocs_cfg=<OcsConfig>; its objective depends on which rank pairs "
+                "the fabric can actually promote")
+        res = promote_aware_placement(
+            fit, topo, ocs_cfg, W, seed=seed, n_sweeps=n_sweeps,
+            max_evals_per_layer=promote_max_evals_per_layer)
+        # The plan travels with the placement in ``_promote_plan``; callers that
+        # need it read that attribute, callers that do not are unaffected.
+        p = res["placement"]
+        p._promote_plan = res["circuits"]
+        p._promote_history = res["history"]
+        return _check(p, W)
+
     raise ValueError(f"unknown placement kind {kind!r}")
 
 
@@ -512,6 +543,7 @@ PLACEMENT_KINDS = (
     "balanced_affinity_layer", "bottleneck_layer",
     "affinity_coordinated_layer",
     "hierarchical_layer", "adversarial",
+    "promote_aware_layer",
 )
 
 

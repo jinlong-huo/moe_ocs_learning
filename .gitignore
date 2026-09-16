@@ -35,6 +35,11 @@ outputs/traces/ocs_comparison/
 outputs/preset_plan.json
 outputs/diagrams/
 
+# Placement caches: rebuildable npz from the placement generators; the JSON
+# results next to them are tracked, and a cache miss just costs build time.
+outputs/four_cell/cache_*/
+outputs/four_cell/*.quick.json
+
 # Virtual environments
 venv/
 .venv/

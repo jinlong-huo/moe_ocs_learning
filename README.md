@@ -130,6 +130,17 @@ every regime (−78.8 % here).
 | `src/eval/cost_model.py`      | GPU→node→pod hierarchy, 3 dispatch modes, per-pair byte matrix, per-rank egress/ingress**bottleneck**                                                                                                            |
 | `src/eval/placement_opt.py`   | 11 placement generators incl. the coordinated per-layer optimiser and a bitset`IngressOracle`                                                                                                                          |
 | `src/eval/ocs_eval.py`        | degree-bounded circuit planning, reconfiguration break-even, temporal stability at 3 timescales                                                                                                                          |
+| `src/eval/promote_aware.py`   | the co-design cell: **alternating** plan ↔ placement, scored on the bottleneck that *remains after* promotion (reproduces `evaluate`'s bottleneck exactly; see `docs/four_cell.md`)                                  |
+| `src/eval/milp_bound.py`      | optimality bounds for placement (`scipy` MILP/LP): min-max load and dedup ingress, with the caveats on what each bound does and does not prove                                                                          |
+| `src/eval/completion.py`      | prefill/decode pass composition → TTFT, ITL and throughput; `compute_us_per_layer` is an explicit parameter, never a measurement                                                                                        |
+| `scripts/ocs_four_cell.py`    | the Affinity-note 2×2 (placement × {EPS, static OCS, oracle OCS}) + regime/port/latency envelope + the interaction term (`synergy`)                                                                                       |
+| `scripts/four_cell_summary.py` | markdown tables from `outputs/four_cell/*.json`, so every quoted number has one reproducing command                                                                                                                     |
+
+**Four-cell results** (affinity placement × optical circuits, three models, and
+the co-design question): [`docs/four_cell.md`](docs/four_cell.md). Headline: D
+(OCS + affinity) is the minimum cell in all three models, but the two mechanisms
+are **substitutes** on the two models where placement does heavy lifting, and
+complements only where placement buys little.
 
 ---
 

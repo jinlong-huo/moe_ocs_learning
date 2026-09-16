@@ -1,0 +1,236 @@
+{
+ "workload": "logs/workload/qwen36",
+ "world_size": 32,
+ "n_dp": 32,
+ "dp_ep_note": "evaluate()/ocs_comparison() default n_dp to world_size, so DP<EP cannot be expressed through them; the dp_ep rows below drive evaluate with an explicit n_dp instead",
+ "topology": {
+  "world_size": 32,
+  "gpus_per_node": 8,
+  "nodes_per_pod": 2,
+  "n_nodes": 4,
+  "n_pods": 2,
+  "n_circuits": 0,
+  "pair_tier_counts": {
+   "INTRA_NODE": 224,
+   "INTRA_POD": 256,
+   "CROSS_POD": 512
+  }
+ },
+ "note": "token->rank ownership is an assumption outside A1; A1 fixes only the expert side of the traffic matrix",
+ "models": {
+  "hash": {
+   "linear": {
+    "eps_bottleneck_us": 3956.16,
+    "cross_pod_bytes": 1210056704.0,
+    "cross_pod_fraction": 0.5155,
+    "rank1_energy": 0.997408,
+    "applicable": true,
+    "static_ocs_gain_pct": 4.7553,
+    "oracle_ocs_gain_pct": 8.3666
+   },
+   "load_balanced_layer": {
+    "eps_bottleneck_us": 5411.8784,
+    "cross_pod_bytes": 1250238464.0,
+    "cross_pod_fraction": 0.5132,
+    "rank1_energy": 0.996162,
+    "applicable": true,
+    "static_ocs_gain_pct": 8.4412,
+    "oracle_ocs_gain_pct": 9.6037
+   },
+   "affinity_coordinated_layer": {
+    "eps_bottleneck_us": 2944.1203,
+    "cross_pod_bytes": 948273152.0,
+    "cross_pod_fraction": 0.516,
+    "rank1_energy": 0.997274,
+    "applicable": true,
+    "static_ocs_gain_pct": 2.5279,
+    "oracle_ocs_gain_pct": 4.5479
+   }
+  },
+  "per_sequence": {
+   "linear": {
+    "eps_bottleneck_us": 13654.0134,
+    "cross_pod_bytes": 1207042048.0,
+    "cross_pod_fraction": 0.514,
+    "rank1_energy": 0.993216,
+    "applicable": true,
+    "static_ocs_gain_pct": 0.0879,
+    "oracle_ocs_gain_pct": 8.4707
+   },
+   "load_balanced_layer": {
+    "eps_bottleneck_us": 13414.807,
+    "cross_pod_bytes": 1190862848.0,
+    "cross_pod_fraction": 0.4903,
+    "rank1_energy": 0.995108,
+    "applicable": true,
+    "static_ocs_gain_pct": 0.0895,
+    "oracle_ocs_gain_pct": 8.6742
+   },
+   "affinity_coordinated_layer": {
+    "eps_bottleneck_us": 11020.1216,
+    "cross_pod_bytes": 964395008.0,
+    "cross_pod_fraction": 0.5252,
+    "rank1_energy": 0.993845,
+    "applicable": true,
+    "static_ocs_gain_pct": 0.1089,
+    "oracle_ocs_gain_pct": 8.4777
+   }
+  },
+  "sequence_block": {
+   "linear": {
+    "eps_bottleneck_us": 13654.0134,
+    "cross_pod_bytes": 1207042048.0,
+    "cross_pod_fraction": 0.514,
+    "rank1_energy": 0.993216,
+    "applicable": true,
+    "static_ocs_gain_pct": 0.0879,
+    "oracle_ocs_gain_pct": 8.4707
+   },
+   "load_balanced_layer": {
+    "eps_bottleneck_us": 13414.807,
+    "cross_pod_bytes": 1190862848.0,
+    "cross_pod_fraction": 0.4903,
+    "rank1_energy": 0.995108,
+    "applicable": true,
+    "static_ocs_gain_pct": 0.0895,
+    "oracle_ocs_gain_pct": 8.6742
+   },
+   "affinity_coordinated_layer": {
+    "eps_bottleneck_us": 11020.1216,
+    "cross_pod_bytes": 964395008.0,
+    "cross_pod_fraction": 0.5252,
+    "rank1_energy": 0.993845,
+    "applicable": true,
+    "static_ocs_gain_pct": 0.1089,
+    "oracle_ocs_gain_pct": 8.4777
+   }
+  },
+  "token_roundrobin": {
+   "linear": {
+    "eps_bottleneck_us": 3966.4819,
+    "cross_pod_bytes": 1211621376.0,
+    "cross_pod_fraction": 0.5162,
+    "rank1_energy": 0.996814,
+    "applicable": true,
+    "static_ocs_gain_pct": 6.4654,
+    "oracle_ocs_gain_pct": 8.7703
+   },
+   "load_balanced_layer": {
+    "eps_bottleneck_us": 5711.3779,
+    "cross_pod_bytes": 1255284736.0,
+    "cross_pod_fraction": 0.5147,
+    "rank1_energy": 0.994271,
+    "applicable": true,
+    "static_ocs_gain_pct": 9.1173,
+    "oracle_ocs_gain_pct": 9.5734
+   },
+   "affinity_coordinated_layer": {
+    "eps_bottleneck_us": 2941.6627,
+    "cross_pod_bytes": 943685632.0,
+    "cross_pod_fraction": 0.5136,
+    "rank1_energy": 0.996076,
+    "applicable": true,
+    "static_ocs_gain_pct": 5.9219,
+    "oracle_ocs_gain_pct": 5.3204
+   }
+  }
+ },
+ "dp_ep": {
+  "hash|dp32|linear": {
+   "eps_bottleneck_us": 3956.16,
+   "ocs_bottleneck_us": 3768.032,
+   "static_ocs_gain_pct": 4.7553,
+   "n_candidate_promotable_pairs": 256,
+   "covered_fraction": 0.069002,
+   "cross_pod_fraction": 0.5155
+  },
+  "hash|dp32|affinity_coordinated_layer": {
+   "eps_bottleneck_us": 2944.1203,
+   "ocs_bottleneck_us": 2869.6973,
+   "static_ocs_gain_pct": 2.5279,
+   "n_candidate_promotable_pairs": 256,
+   "covered_fraction": 0.066362,
+   "cross_pod_fraction": 0.516
+  },
+  "hash|dp16|linear": {
+   "eps_bottleneck_us": 7002.2733,
+   "ocs_bottleneck_us": 6778.592,
+   "static_ocs_gain_pct": 3.1944,
+   "n_candidate_promotable_pairs": 256,
+   "covered_fraction": 0.069917,
+   "cross_pod_fraction": 0.5095
+  },
+  "hash|dp16|affinity_coordinated_layer": {
+   "eps_bottleneck_us": 5552.1254,
+   "ocs_bottleneck_us": 5539.6339,
+   "static_ocs_gain_pct": 0.225,
+   "n_candidate_promotable_pairs": 256,
+   "covered_fraction": 0.065933,
+   "cross_pod_fraction": 0.5294
+  },
+  "hash|dp8|linear": {
+   "eps_bottleneck_us": 13538.5062,
+   "ocs_bottleneck_us": 12358.1632,
+   "static_ocs_gain_pct": 8.7184,
+   "n_candidate_promotable_pairs": 128,
+   "covered_fraction": 0.136044,
+   "cross_pod_fraction": 0.51
+  },
+  "hash|dp8|affinity_coordinated_layer": {
+   "eps_bottleneck_us": 10996.8563,
+   "ocs_bottleneck_us": 10037.2058,
+   "static_ocs_gain_pct": 8.7266,
+   "n_candidate_promotable_pairs": 128,
+   "covered_fraction": 0.129073,
+   "cross_pod_fraction": 0.5292
+  },
+  "per_sequence|dp32|linear": {
+   "eps_bottleneck_us": 13654.0134,
+   "ocs_bottleneck_us": 13642.0134,
+   "static_ocs_gain_pct": 0.0879,
+   "n_candidate_promotable_pairs": 240,
+   "covered_fraction": 0.103174,
+   "cross_pod_fraction": 0.514
+  },
+  "per_sequence|dp32|affinity_coordinated_layer": {
+   "eps_bottleneck_us": 11020.1216,
+   "ocs_bottleneck_us": 11008.1216,
+   "static_ocs_gain_pct": 0.1089,
+   "n_candidate_promotable_pairs": 240,
+   "covered_fraction": 0.101615,
+   "cross_pod_fraction": 0.5252
+  },
+  "per_sequence|dp16|linear": {
+   "eps_bottleneck_us": 20352.2842,
+   "ocs_bottleneck_us": 20340.2842,
+   "static_ocs_gain_pct": 0.059,
+   "n_candidate_promotable_pairs": 192,
+   "covered_fraction": 0.108175,
+   "cross_pod_fraction": 0.509
+  },
+  "per_sequence|dp16|affinity_coordinated_layer": {
+   "eps_bottleneck_us": 16358.5203,
+   "ocs_bottleneck_us": 16346.5203,
+   "static_ocs_gain_pct": 0.0734,
+   "n_candidate_promotable_pairs": 192,
+   "covered_fraction": 0.101064,
+   "cross_pod_fraction": 0.5297
+  },
+  "per_sequence|dp8|linear": {
+   "eps_bottleneck_us": 20352.2842,
+   "ocs_bottleneck_us": 18699.0989,
+   "static_ocs_gain_pct": 8.1228,
+   "n_candidate_promotable_pairs": 128,
+   "covered_fraction": 0.142212,
+   "cross_pod_fraction": 0.5093
+  },
+  "per_sequence|dp8|affinity_coordinated_layer": {
+   "eps_bottleneck_us": 16358.5203,
+   "ocs_bottleneck_us": 14941.5923,
+   "static_ocs_gain_pct": 8.6617,
+   "n_candidate_promotable_pairs": 128,
+   "covered_fraction": 0.132246,
+   "cross_pod_fraction": 0.5293
+  }
+ }
+}
