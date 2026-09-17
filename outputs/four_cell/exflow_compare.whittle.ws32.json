@@ -1,0 +1,119 @@
+{
+ "workload": "logs/workload/whittle",
+ "world_size": 32,
+ "n_circuits": 16,
+ "cells": 65536,
+ "transitions": 64512,
+ "placements": {
+  "random": {
+   "exflow_reroute_pct": 96.949,
+   "mean_fanout": 14.1161,
+   "bottleneck_us": 11966.8,
+   "cross_pod_GB": 3.7884,
+   "static_ocs_gain_pct": 8.43,
+   "ocs_covered_fraction": 0.067118,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.06868343946978625,
+    "top_budget": 16,
+    "herfindahl": 0.003918945225579667
+   }
+  },
+  "linear": {
+   "exflow_reroute_pct": 96.894,
+   "mean_fanout": 14.0734,
+   "bottleneck_us": 12639.2,
+   "cross_pod_GB": 3.7758,
+   "static_ocs_gain_pct": 8.4638,
+   "ocs_covered_fraction": 0.066578,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.06952848548226478,
+    "top_budget": 16,
+    "herfindahl": 0.003917658762606754
+   }
+  },
+  "load_balanced_layer": {
+   "exflow_reroute_pct": 94.646,
+   "mean_fanout": 15.0552,
+   "bottleneck_us": 19134.0,
+   "cross_pod_GB": 4.0385,
+   "static_ocs_gain_pct": 8.4731,
+   "ocs_covered_fraction": 0.069499,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.07787724070501703,
+    "top_budget": 16,
+    "herfindahl": 0.003954657291830347
+   }
+  },
+  "affinity_layer": {
+   "exflow_reroute_pct": 90.766,
+   "mean_fanout": 12.3791,
+   "bottleneck_us": 22057.9,
+   "cross_pod_GB": 3.3261,
+   "static_ocs_gain_pct": 8.3883,
+   "ocs_covered_fraction": 0.080268,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.09230939743605532,
+    "top_budget": 16,
+    "herfindahl": 0.0041381266694538055
+   }
+  },
+  "affinity_coordinated_layer": {
+   "exflow_reroute_pct": 98.256,
+   "mean_fanout": 12.7093,
+   "bottleneck_us": 10120.3,
+   "cross_pod_GB": 3.4065,
+   "static_ocs_gain_pct": 2.9128,
+   "ocs_covered_fraction": 0.063835,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.06526674233825198,
+    "top_budget": 16,
+    "herfindahl": 0.003908385460057981
+   }
+  },
+  "exflow_ls (from linear)": {
+   "exflow_reroute_pct": 87.181,
+   "mean_fanout": 13.8313,
+   "bottleneck_us": 13602.2,
+   "cross_pod_GB": 3.7155,
+   "static_ocs_gain_pct": 8.3451,
+   "ocs_covered_fraction": 0.067979,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.07275320970042796,
+    "top_budget": 16,
+    "herfindahl": 0.003931964571021625
+   }
+  },
+  "exflow_ls (from affinity)": {
+   "exflow_reroute_pct": 87.959,
+   "mean_fanout": 13.8021,
+   "bottleneck_us": 13042.7,
+   "cross_pod_GB": 3.7013,
+   "static_ocs_gain_pct": 8.3715,
+   "ocs_covered_fraction": 0.066612,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.07090734039374523,
+    "top_budget": 16,
+    "herfindahl": 0.003922906705967695
+   }
+  }
+ },
+ "correlations": {
+  "pearson_exflow_vs_bottleneck": -0.31672634983021236,
+  "pearson_exflow_vs_ocs_concentration": -0.388898378444992,
+  "note": "positive exflow-vs-bottleneck means the two objectives AGREE on which placement is better; negative means they conflict"
+ }
+}

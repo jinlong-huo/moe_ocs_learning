@@ -1,0 +1,119 @@
+{
+ "workload": "logs/workload/qwen36",
+ "world_size": 32,
+ "n_circuits": 16,
+ "cells": 40960,
+ "transitions": 39936,
+ "placements": {
+  "random": {
+   "exflow_reroute_pct": 96.993,
+   "mean_fanout": 7.2675,
+   "bottleneck_us": 4406.1,
+   "cross_pod_GB": 1.2187,
+   "static_ocs_gain_pct": 8.4494,
+   "ocs_covered_fraction": 0.069218,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.07208969369442036,
+    "top_budget": 16,
+    "herfindahl": 0.003925303265517193
+   }
+  },
+  "linear": {
+   "exflow_reroute_pct": 96.737,
+   "mean_fanout": 7.2236,
+   "bottleneck_us": 3956.2,
+   "cross_pod_GB": 1.2101,
+   "static_ocs_gain_pct": 4.7553,
+   "ocs_covered_fraction": 0.069002,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.0716123266897747,
+    "top_budget": 16,
+    "herfindahl": 0.003931538976309513
+   }
+  },
+  "load_balanced_layer": {
+   "exflow_reroute_pct": 95.002,
+   "mean_fanout": 7.4974,
+   "bottleneck_us": 5411.9,
+   "cross_pod_GB": 1.2502,
+   "static_ocs_gain_pct": 8.4412,
+   "ocs_covered_fraction": 0.067466,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.07738325350386917,
+    "top_budget": 16,
+    "herfindahl": 0.003934880512736303
+   }
+  },
+  "affinity_layer": {
+   "exflow_reroute_pct": 80.171,
+   "mean_fanout": 4.9637,
+   "bottleneck_us": 8082.0,
+   "cross_pod_GB": 0.8263,
+   "static_ocs_gain_pct": 8.3223,
+   "ocs_covered_fraction": 0.087426,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.12486491309822428,
+    "top_budget": 16,
+    "herfindahl": 0.004422718423345559
+   }
+  },
+  "affinity_coordinated_layer": {
+   "exflow_reroute_pct": 97.899,
+   "mean_fanout": 5.6516,
+   "bottleneck_us": 2944.1,
+   "cross_pod_GB": 0.9483,
+   "static_ocs_gain_pct": 2.5279,
+   "ocs_covered_fraction": 0.066362,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.06832475206468779,
+    "top_budget": 16,
+    "herfindahl": 0.003917291827876498
+   }
+  },
+  "exflow_ls (from linear)": {
+   "exflow_reroute_pct": 80.672,
+   "mean_fanout": 7.1127,
+   "bottleneck_us": 4552.2,
+   "cross_pod_GB": 1.1955,
+   "static_ocs_gain_pct": 8.556,
+   "ocs_covered_fraction": 0.069928,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.07477455253131596,
+    "top_budget": 16,
+    "herfindahl": 0.003944342870773158
+   }
+  },
+  "exflow_ls (from affinity)": {
+   "exflow_reroute_pct": 80.719,
+   "mean_fanout": 6.679,
+   "bottleneck_us": 3909.6,
+   "cross_pod_GB": 1.1212,
+   "static_ocs_gain_pct": 8.3027,
+   "ocs_covered_fraction": 0.068542,
+   "ocs_alignment": {
+    "applicable": true,
+    "cross_pod_pairs_active": 256,
+    "top_budget_share": 0.07158983801319568,
+    "top_budget": 16,
+    "herfindahl": 0.0039290077441074085
+   }
+  }
+ },
+ "correlations": {
+  "pearson_exflow_vs_bottleneck": -0.48769877152777363,
+  "pearson_exflow_vs_ocs_concentration": -0.5119327154292092,
+  "note": "positive exflow-vs-bottleneck means the two objectives AGREE on which placement is better; negative means they conflict"
+ }
+}
