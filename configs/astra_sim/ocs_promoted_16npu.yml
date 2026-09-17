@@ -1,0 +1,7 @@
+# Same fabric with the cross-pod tier PROMOTED: the oversubscription is removed,
+# so the pair runs at full NIC rate. This is what one optical circuit buys in
+# this repo's cost model (a tier promotion, not extra bandwidth).
+topology: [ Switch, Ring ]
+npus_count: [ 8, 2 ]
+bandwidth: [ 400, 50 ]
+latency: [ 468.125, 500 ]

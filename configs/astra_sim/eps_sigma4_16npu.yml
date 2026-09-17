@@ -1,0 +1,10 @@
+# ASTRA-sim analytical network config — EPS baseline, 16 NPUs, cross-pod sigma=4
+#
+# 2-tier: 8 NPUs per switch (intra-node, NVLink) x 2 switches (cross-pod, NIC).
+# Mirrors this repo's FabricConfig: intra_node 400 GB/s / inter_node 50 GB/s,
+# with the core layer oversubscribed 4:1, so the cross tier drains at 50/4 = 12.5.
+# Latencies are halved because the analytical switch backend doubles them.
+topology: [ Switch, Ring ]
+npus_count: [ 8, 2 ]
+bandwidth: [ 400, 12.5 ]
+latency: [ 468.125, 500 ]

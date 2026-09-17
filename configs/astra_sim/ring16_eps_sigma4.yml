@@ -1,0 +1,6 @@
+# Single-tier ring, 16 NPUs, cross-pod rate under sigma=4 oversubscription.
+# (50 GB/s NIC / 4)
+topology: [ Ring ]
+npus_count: [ 16 ]
+bandwidth: [ 12.5 ]
+latency: [ 500 ]
