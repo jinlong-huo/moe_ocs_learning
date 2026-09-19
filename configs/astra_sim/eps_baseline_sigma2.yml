@@ -1,0 +1,7 @@
+# sigma = 2 (cross tier 25 GB/s).  One point of the sigma envelope.
+# NOTE: sigma has NO citation -- see docs/eps_baseline.md section 3.  Every
+# sigma-dependent claim is reported as an envelope over {1,2,4,8}, never a point.
+topology: [ Switch, Ring ]
+npus_count: [ 8, 4 ]
+bandwidth: [ 450, 25 ]
+latency: [ 2000, 12000 ]

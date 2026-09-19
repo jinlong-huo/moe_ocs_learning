@@ -1,0 +1,128 @@
+{
+ "workload": "logs/workload/qwen36",
+ "world_size": 32,
+ "k": 4,
+ "note": "f in Delta = f*(1-1/sigma) is the promotable share of the *binding* resource, not of all traffic; read out of evaluate()'s arithmetic, nothing modified",
+ "rows": {
+  "hash|linear": {
+   "binding_resource": "ingress_nic",
+   "binding_rank": 24,
+   "binding_us": 1966.08,
+   "promotable_share_of_binding": 0.520487,
+   "cross_pod_bytes": 605028352.0,
+   "intra_node_bytes": 265146368.0,
+   "nic_max_us": 1966.08,
+   "nvl_max_us": 21.6178
+  },
+  "hash|load_balanced_layer": {
+   "binding_resource": "ingress_nic",
+   "binding_rank": 0,
+   "binding_us": 2693.9392,
+   "promotable_share_of_binding": 0.500585,
+   "cross_pod_bytes": 625119232.0,
+   "intra_node_bytes": 278675456.0,
+   "nic_max_us": 2693.9392,
+   "nvl_max_us": 31.3845
+  },
+  "hash|affinity_coordinated_layer": {
+   "binding_resource": "ingress_nic",
+   "binding_rank": 28,
+   "binding_us": 1460.0602,
+   "promotable_share_of_binding": 0.514505,
+   "cross_pod_bytes": 474136576.0,
+   "intra_node_bytes": 207728640.0,
+   "nic_max_us": 1460.0602,
+   "nvl_max_us": 15.7377
+  },
+  "per_sequence|linear": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 3,
+   "binding_us": 6815.0067,
+   "promotable_share_of_binding": 0.51236,
+   "cross_pod_bytes": 603521024.0,
+   "intra_node_bytes": 259252224.0,
+   "nic_max_us": 6815.0067,
+   "nvl_max_us": 78.8617
+  },
+  "per_sequence|load_balanced_layer": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 1,
+   "binding_us": 6695.4035,
+   "promotable_share_of_binding": 0.488139,
+   "cross_pod_bytes": 595431424.0,
+   "intra_node_bytes": 293351424.0,
+   "nic_max_us": 6695.4035,
+   "nvl_max_us": 92.6879
+  },
+  "per_sequence|affinity_coordinated_layer": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 0,
+   "binding_us": 5498.0608,
+   "promotable_share_of_binding": 0.529406,
+   "cross_pod_bytes": 482197504.0,
+   "intra_node_bytes": 206327808.0,
+   "nic_max_us": 5498.0608,
+   "nvl_max_us": 57.6717
+  },
+  "measured_packed_4|linear": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 0,
+   "binding_us": 13508.6899,
+   "promotable_share_of_binding": 0.51654,
+   "cross_pod_bytes": 597819392.0,
+   "intra_node_bytes": 277528576.0,
+   "nic_max_us": 13508.6899,
+   "nvl_max_us": 159.2434
+  },
+  "measured_packed_4|load_balanced_layer": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 2,
+   "binding_us": 13199.0323,
+   "promotable_share_of_binding": 0.479801,
+   "cross_pod_bytes": 574889984.0,
+   "intra_node_bytes": 321568768.0,
+   "nic_max_us": 13199.0323,
+   "nvl_max_us": 182.5633
+  },
+  "measured_packed_4|affinity_coordinated_layer": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 1,
+   "binding_us": 11002.7571,
+   "promotable_share_of_binding": 0.536241,
+   "cross_pod_bytes": 486776832.0,
+   "intra_node_bytes": 201072640.0,
+   "nic_max_us": 11002.7571,
+   "nvl_max_us": 114.3421
+  },
+  "measured_spread_4|linear": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 16,
+   "binding_us": 13814.9888,
+   "promotable_share_of_binding": 0.525776,
+   "cross_pod_bytes": 606818304.0,
+   "intra_node_bytes": 263983104.0,
+   "nic_max_us": 13814.9888,
+   "nvl_max_us": 151.8979
+  },
+  "measured_spread_4|load_balanced_layer": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 24,
+   "binding_us": 15209.1853,
+   "promotable_share_of_binding": 0.563393,
+   "cross_pod_bytes": 628400128.0,
+   "intra_node_bytes": 270409728.0,
+   "nic_max_us": 15209.1853,
+   "nvl_max_us": 173.7159
+  },
+  "measured_spread_4|affinity_coordinated_layer": {
+   "binding_resource": "egress_nic",
+   "binding_rank": 8,
+   "binding_us": 11008.0819,
+   "promotable_share_of_binding": 0.534975,
+   "cross_pod_bytes": 475406336.0,
+   "intra_node_bytes": 208216064.0,
+   "nic_max_us": 11008.0819,
+   "nvl_max_us": 119.7488
+  }
+ }
+}

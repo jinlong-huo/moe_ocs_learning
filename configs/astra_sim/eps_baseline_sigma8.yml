@@ -1,0 +1,5 @@
+# sigma = 8 (cross tier 6.25 GB/s).  Upper end of the envelope.
+topology: [ Switch, Ring ]
+npus_count: [ 8, 4 ]
+bandwidth: [ 450, 6.25 ]
+latency: [ 2000, 12000 ]

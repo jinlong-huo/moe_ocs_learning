@@ -1,0 +1,91 @@
+{
+ "workload": "logs/workload/qwen36",
+ "world_size": 32,
+ "k": 4,
+ "rows": {
+  "hash|linear": {
+   "jaccard_fit_vs_eval": 0.0667,
+   "n_fit": 16,
+   "n_eval": 16,
+   "n_shared": 2,
+   "covered_fraction": 0.069002
+  },
+  "hash|load_balanced_layer": {
+   "jaccard_fit_vs_eval": 0.0323,
+   "n_fit": 16,
+   "n_eval": 16,
+   "n_shared": 1,
+   "covered_fraction": 0.067466
+  },
+  "hash|affinity_coordinated_layer": {
+   "jaccard_fit_vs_eval": 0.1429,
+   "n_fit": 16,
+   "n_eval": 16,
+   "n_shared": 4,
+   "covered_fraction": 0.066362
+  },
+  "per_sequence|linear": {
+   "jaccard_fit_vs_eval": 0.0,
+   "n_fit": 16,
+   "n_eval": 16,
+   "n_shared": 0,
+   "covered_fraction": 0.103174
+  },
+  "per_sequence|load_balanced_layer": {
+   "jaccard_fit_vs_eval": 0.0,
+   "n_fit": 16,
+   "n_eval": 16,
+   "n_shared": 0,
+   "covered_fraction": 0.09805
+  },
+  "per_sequence|affinity_coordinated_layer": {
+   "jaccard_fit_vs_eval": 0.0,
+   "n_fit": 16,
+   "n_eval": 16,
+   "n_shared": 0,
+   "covered_fraction": 0.101615
+  },
+  "measured_packed_4|linear": {
+   "jaccard_fit_vs_eval": 0.3333,
+   "n_fit": 8,
+   "n_eval": 8,
+   "n_shared": 4,
+   "covered_fraction": 0.139896
+  },
+  "measured_packed_4|load_balanced_layer": {
+   "jaccard_fit_vs_eval": 0.2308,
+   "n_fit": 8,
+   "n_eval": 8,
+   "n_shared": 3,
+   "covered_fraction": 0.128956
+  },
+  "measured_packed_4|affinity_coordinated_layer": {
+   "jaccard_fit_vs_eval": 0.0667,
+   "n_fit": 8,
+   "n_eval": 8,
+   "n_shared": 1,
+   "covered_fraction": 0.129788
+  },
+  "measured_spread_4|linear": {
+   "jaccard_fit_vs_eval": 1.0,
+   "n_fit": 4,
+   "n_eval": 4,
+   "n_shared": 4,
+   "covered_fraction": 0.131932
+  },
+  "measured_spread_4|load_balanced_layer": {
+   "jaccard_fit_vs_eval": 1.0,
+   "n_fit": 4,
+   "n_eval": 4,
+   "n_shared": 4,
+   "covered_fraction": 0.133499
+  },
+  "measured_spread_4|affinity_coordinated_layer": {
+   "jaccard_fit_vs_eval": 1.0,
+   "n_fit": 4,
+   "n_eval": 4,
+   "n_shared": 4,
+   "covered_fraction": 0.124633
+  }
+ }
+}

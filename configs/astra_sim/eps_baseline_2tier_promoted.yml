@@ -1,0 +1,15 @@
+# Same fabric as eps_baseline_2tier.yml with the cross-pod tier PROMOTED.
+#
+# In this repo a circuit is a tier promotion for one rank pair: it removes that
+# pair's oversubscription and the pair runs at full NIC rate again (50 GB/s from
+# 12.5).  The analytical backend is tier-level, so it cannot express "this ONE
+# pair is promoted" — this config is the whole-tier upper bound, i.e. what the
+# firmware would buy if every cross-pod pair had a circuit.  Per-pair promotion
+# needs the ns-3 backend (see docs/eps_baseline.md section 5).
+#
+# latency is unchanged on purpose: a circuit removes contention, it does not
+# remove the flight time.
+topology: [ Switch, Ring ]
+npus_count: [ 8, 4 ]
+bandwidth: [ 450, 50 ]
+latency: [ 2000, 12000 ]

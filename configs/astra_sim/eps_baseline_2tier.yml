@@ -1,0 +1,20 @@
+# EPS baseline that MATCHES this repo's FabricConfig — 32 NPUs, 2 tiers.
+#
+# FabricConfig (src/eval/cost_model.py)      this config
+#   intra_node 450 GB/s, 2 us   ->  Switch, npus_count 8,  bandwidth 450,  latency 2000
+#   cross_pod   50/sigma, 12 us ->  Ring,   npus_count 4,  bandwidth 12.5, latency 12000
+#   sigma = 4 (core_oversubscription) merges into the 12.5 GB/s
+#
+# UNITS, measured not assumed (2026-09-17): with the 16-NPU all-to-all toy,
+#   cycles = 75620 + 240 * latency      (240 = 16*15 rank pairs)
+# so latency is charged ONCE PER RANK PAIR PER ITERATION and is expressed in ns
+# (1 cycle = 1 ns).  Our cost model adds alpha ONCE to the bottleneck.  That is a
+# structural difference, not a unit conversion, and it is the main remaining
+# obstacle to a like-for-like ordering comparison.
+#
+# The earlier ring16_*.yml configs used latency 500 (= 0.5 us) where FabricConfig
+# says 12 us: a 24x mismatch on the tier that the whole OCS claim lives on.
+topology: [ Switch, Ring ]
+npus_count: [ 8, 4 ]
+bandwidth: [ 450, 12.5 ]
+latency: [ 2000, 12000 ]

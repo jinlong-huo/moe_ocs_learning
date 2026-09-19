@@ -27,6 +27,7 @@ models
 
 # Runtime logs
 logs/
+log/
 
 # Generated comparison reports
 outputs/traces/ocs_comparison/
@@ -54,3 +55,10 @@ venv/
 # Local AI tool session state (not repo content)
 .codewhale/
 outputs/ocs_model_comparison_traces/
+
+# npm cache used by local tooling
+.npmcache2/
+
+# ASTRA-sim generated traffic traces (.et) are rebuilt from the source
+# workload by the astra_sim bridge; the summary JSONs beside them are tracked.
+outputs/astra_sim/et/

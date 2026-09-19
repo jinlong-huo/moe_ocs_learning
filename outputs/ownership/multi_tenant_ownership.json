@@ -1,0 +1,98 @@
+{
+ "source": "logs/multi_tenant/*/session.json + traces/tenant-*.json",
+ "world_size": 32,
+ "n_dp": 32,
+ "measured": [
+  "co-batched sequences per step",
+  "tokens each contributes",
+  "arrival order",
+  "per-token per-layer expert routing"
+ ],
+ "assumed": [
+  "how live sequences map onto DP replicas (support is measured, the assignment is not recorded by the capture)"
+ ],
+ "runs": [
+  {
+   "run": "run_burst_3t",
+   "model": "./models/Qwen3.6-35B-A3B-4bit",
+   "backend": "vllm",
+   "num_experts": 256,
+   "top_k": 8,
+   "num_layers": 40,
+   "num_tenants": 3,
+   "steps": 33,
+   "total_tokens": 210,
+   "concurrency_hist": {
+    "1": 1,
+    "2": 1,
+    "3": 31
+   },
+   "concurrency_mean": 2.909090909090909,
+   "concurrency_max": 3,
+   "source_support_measured_mean": 2.909090909090909,
+   "source_support_measured_max": 3,
+   "source_support_hash": 32,
+   "tokens_per_step_mean": 6.363636363636363,
+   "tokens_per_step_max": 79,
+   "gini_tokens_per_replica_measured": 0.90625,
+   "gini_tokens_per_replica_hash": 0.0,
+   "same_replica_token_share_measured": 0.044879,
+   "same_replica_token_share_hash": 0.03125,
+   "expert_overlap_same_step": {
+    "0": {
+     "n_pairs": 94,
+     "mean_jaccard": 0.394012
+    },
+    "20": {
+     "n_pairs": 94,
+     "mean_jaccard": 0.551506
+    },
+    "39": {
+     "n_pairs": 94,
+     "mean_jaccard": 0.425528
+    }
+   }
+  },
+  {
+   "run": "run_burst_4t",
+   "model": "./models/Qwen3.6-35B-A3B-4bit",
+   "backend": "vllm",
+   "num_experts": 256,
+   "top_k": 8,
+   "num_layers": 40,
+   "num_tenants": 4,
+   "steps": 33,
+   "total_tokens": 275,
+   "concurrency_hist": {
+    "1": 1,
+    "3": 1,
+    "4": 31
+   },
+   "concurrency_mean": 3.878787878787879,
+   "concurrency_max": 4,
+   "source_support_measured_mean": 3.878787878787879,
+   "source_support_measured_max": 4,
+   "source_support_hash": 32,
+   "tokens_per_step_mean": 8.333333333333334,
+   "tokens_per_step_max": 114,
+   "gini_tokens_per_replica_measured": 0.876023,
+   "gini_tokens_per_replica_hash": 0.0,
+   "same_replica_token_share_measured": 0.040061,
+   "same_replica_token_share_hash": 0.03125,
+   "expert_overlap_same_step": {
+    "0": {
+     "n_pairs": 189,
+     "mean_jaccard": 0.408521
+    },
+    "20": {
+     "n_pairs": 189,
+     "mean_jaccard": 0.436464
+    },
+    "39": {
+     "n_pairs": 189,
+     "mean_jaccard": 0.365425
+    }
+   }
+  }
+ ]
+}

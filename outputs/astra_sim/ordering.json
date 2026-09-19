@@ -1,0 +1,135 @@
+{
+ "harness": "scripts/astra_ordering.py",
+ "what": "ordering validation, not time validation: ASTRA-sim is event-driven and charges latency per rank pair, the closed-form model adds alpha once",
+ "astra_sim_dir": "/Users/Vir-G/astra-sim",
+ "coverage_c": 0.1399,
+ "structural_finding": {
+  "latency_model": "cycles = 75620 + 240*latency on the 16-NPU toy (240 = 16*15 rank pairs)",
+  "consequence": "the promoted/unpromoted ratio is latency-dependent: 4x bandwidth buys 2.12x at latency 500 and 1.07x at 12000"
+ },
+ "rows": {
+  "lat500|sigma1": {
+   "latency_ns": 500,
+   "sigma": 1.0,
+   "eps_bandwidth_gbps": 50.0,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 195620,
+   "promoted_cycles": 195620,
+   "astra_gain_pct": 0.0,
+   "model_gain_pct": 0.0
+  },
+  "lat500|sigma2": {
+   "latency_ns": 500,
+   "sigma": 2.0,
+   "eps_bandwidth_gbps": 25.0,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 268820,
+   "promoted_cycles": 195620,
+   "astra_gain_pct": 27.23,
+   "model_gain_pct": 6.995
+  },
+  "lat500|sigma4": {
+   "latency_ns": 500,
+   "sigma": 4.0,
+   "eps_bandwidth_gbps": 12.5,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 415220,
+   "promoted_cycles": 195620,
+   "astra_gain_pct": 52.888,
+   "model_gain_pct": 10.492
+  },
+  "lat500|sigma8": {
+   "latency_ns": 500,
+   "sigma": 8.0,
+   "eps_bandwidth_gbps": 6.25,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 708260,
+   "promoted_cycles": 195620,
+   "astra_gain_pct": 72.38,
+   "model_gain_pct": 12.241
+  },
+  "lat500|spearman": 1.0,
+  "lat2000|sigma1": {
+   "latency_ns": 2000,
+   "sigma": 1.0,
+   "eps_bandwidth_gbps": 50.0,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 555620,
+   "promoted_cycles": 555620,
+   "astra_gain_pct": 0.0,
+   "model_gain_pct": 0.0
+  },
+  "lat2000|sigma2": {
+   "latency_ns": 2000,
+   "sigma": 2.0,
+   "eps_bandwidth_gbps": 25.0,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 628820,
+   "promoted_cycles": 555620,
+   "astra_gain_pct": 11.641,
+   "model_gain_pct": 6.995
+  },
+  "lat2000|sigma4": {
+   "latency_ns": 2000,
+   "sigma": 4.0,
+   "eps_bandwidth_gbps": 12.5,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 775220,
+   "promoted_cycles": 555620,
+   "astra_gain_pct": 28.327,
+   "model_gain_pct": 10.492
+  },
+  "lat2000|sigma8": {
+   "latency_ns": 2000,
+   "sigma": 8.0,
+   "eps_bandwidth_gbps": 6.25,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 1068260,
+   "promoted_cycles": 555620,
+   "astra_gain_pct": 47.988,
+   "model_gain_pct": 12.241
+  },
+  "lat2000|spearman": 1.0,
+  "lat12000|sigma1": {
+   "latency_ns": 12000,
+   "sigma": 1.0,
+   "eps_bandwidth_gbps": 50.0,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 2955620,
+   "promoted_cycles": 2955620,
+   "astra_gain_pct": 0.0,
+   "model_gain_pct": 0.0
+  },
+  "lat12000|sigma2": {
+   "latency_ns": 12000,
+   "sigma": 2.0,
+   "eps_bandwidth_gbps": 25.0,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 3028820,
+   "promoted_cycles": 2955620,
+   "astra_gain_pct": 2.417,
+   "model_gain_pct": 6.995
+  },
+  "lat12000|sigma4": {
+   "latency_ns": 12000,
+   "sigma": 4.0,
+   "eps_bandwidth_gbps": 12.5,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 3175220,
+   "promoted_cycles": 2955620,
+   "astra_gain_pct": 6.916,
+   "model_gain_pct": 10.492
+  },
+  "lat12000|sigma8": {
+   "latency_ns": 12000,
+   "sigma": 8.0,
+   "eps_bandwidth_gbps": 6.25,
+   "promoted_bandwidth_gbps": 50.0,
+   "eps_cycles": 3468260,
+   "promoted_cycles": 2955620,
+   "astra_gain_pct": 14.781,
+   "model_gain_pct": 12.241
+  },
+  "lat12000|spearman": 1.0
+ }
+}

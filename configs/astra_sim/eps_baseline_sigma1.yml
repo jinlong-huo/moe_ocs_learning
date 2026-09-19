@@ -1,0 +1,7 @@
+# sigma = 1: the pod/core layer is NOT oversubscribed.  A circuit removes
+# contention and nothing else, so here it must buy ~nothing -- this is the
+# falsification config for the whole promotion mechanism.
+topology: [ Switch, Ring ]
+npus_count: [ 8, 4 ]
+bandwidth: [ 450, 50 ]
+latency: [ 2000, 12000 ]
