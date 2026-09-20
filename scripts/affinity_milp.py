@@ -243,6 +243,7 @@ def solve_affinity_partition(A: np.ndarray, world_size: int, *,
               f"{'[LP relaxation]' if relax else '[MIP]'}")
 
     t0 = time.time()
+    # this is the core to conduct the MILP using HiGHS 2018 paper
     res = milp(
         c=c,
         constraints=[LinearConstraint(A_mat, np.asarray(lb), np.asarray(ub))],

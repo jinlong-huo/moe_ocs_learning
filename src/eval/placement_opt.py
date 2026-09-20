@@ -250,6 +250,7 @@ def _greedy_cluster(A: np.ndarray, W: int) -> np.ndarray:
     leftovers = np.flatnonzero(out < 0)
     for i, e in enumerate(leftovers):
         out[e] = i % W
+    # The mapping then serves for the affinity score (s, mapping)
     return out
 
 
