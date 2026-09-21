@@ -1,0 +1,3 @@
+collective,phase,start_ns,finish_ns,network_ns,bytes,n_flows,eps_bytes,ocs_bytes,peak_core_utilisation,peak_port_queue_mb
+0,dispatch,0.0,1698611.2,1698611.2,164106240.0,124,84930560.0,0,1.0,38.0631
+1,combine,1698611.2,3397222.4,1698611.2,164106240.0,124,84930560.0,0,1.0,10.1164

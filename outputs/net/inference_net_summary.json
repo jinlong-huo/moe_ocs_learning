@@ -1,0 +1,60 @@
+{
+ "workload": "logs/workload/qwen36",
+ "world_size": 32,
+ "source_model": "measured_spread_4",
+ "placement": "linear",
+ "layers": [
+  0
+ ],
+ "passes": 1,
+ "fabric": {
+  "sigma": 32.0,
+  "port_gbps": 50.0,
+  "n_circuits": 16,
+  "ports_per_rank": 2,
+  "reconfig_us": 0.0,
+  "epoch_collectives": 8
+ },
+ "policies": {
+  "none": {
+   "policy": "none",
+   "n_collectives": 2,
+   "simulated_ns": 3397222.4,
+   "simulated_us": 3397.222,
+   "network_total_us": 3397.222,
+   "network_mean_us": 1698.611,
+   "network_p50_us": 1698.611,
+   "network_max_us": 1698.611,
+   "eps_bytes": 169861120.0,
+   "ocs_bytes": 0,
+   "ocs_share": 0.0,
+   "n_reconfigurations": 0,
+   "reconfig_sum_us": 0.0,
+   "dark_wall_us": 0.0,
+   "dark_fraction_of_run": 0.0,
+   "n_epochs": 0,
+   "circuits_carried_bytes": 0,
+   "circuit_busy_us_total": 0.0
+  },
+  "oracle_hot": {
+   "policy": "oracle_hot",
+   "n_collectives": 2,
+   "simulated_ns": 2794782.7,
+   "simulated_us": 2794.783,
+   "network_total_us": 2794.783,
+   "network_mean_us": 1397.391,
+   "network_p50_us": 1397.391,
+   "network_max_us": 1397.391,
+   "eps_bytes": 139739136.0,
+   "ocs_bytes": 30121984.0,
+   "ocs_share": 0.1773,
+   "n_reconfigurations": 1,
+   "reconfig_sum_us": 0.0,
+   "dark_wall_us": 0.0,
+   "dark_fraction_of_run": 0.0,
+   "n_epochs": 1,
+   "circuits_carried_bytes": 30121984.0,
+   "circuit_busy_us_total": 12854.055
+  }
+ }
+}

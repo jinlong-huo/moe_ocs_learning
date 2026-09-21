@@ -1,0 +1,218 @@
+{
+ "workload": "logs/workload/qwen36",
+ "world_size": 32,
+ "source_model": "measured_packed_4",
+ "placement": "linear",
+ "unit": "one MoE layer, custom collective",
+ "network": "configs/astra_sim/eps_baseline_2tier.yml",
+ "note": "promoted pairs removed from the simulated fabric",
+ "results": {
+  "eps": {
+   "Congestion_Unaware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 159705,
+    "argmax_rank": 30,
+    "min_cycles": 5788,
+    "mean_cycles": 68437.375,
+    "per_rank": [
+     5788,
+     6042,
+     6178,
+     6263,
+     6305,
+     6382,
+     6432,
+     6458,
+     6551,
+     6577,
+     6695,
+     6772,
+     7602,
+     7772,
+     7831,
+     9645,
+     96631,
+     99378,
+     102026,
+     107214,
+     109961,
+     113013,
+     118201,
+     120947,
+     144751,
+     144751,
+     146375,
+     146375,
+     155835,
+     155835,
+     159705,
+     159705
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 159705
+     },
+     {
+      "rank": 30,
+      "cycles": 159705
+     },
+     {
+      "rank": 29,
+      "cycles": 155835
+     },
+     {
+      "rank": 28,
+      "cycles": 155835
+     },
+     {
+      "rank": 27,
+      "cycles": 146375
+     }
+    ],
+    "bytes_simulated": 164978688,
+    "bytes_removed": 0,
+    "n_circuits": 0
+   }
+  },
+  "hot16": {
+   "Congestion_Unaware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 146375,
+    "argmax_rank": 30,
+    "min_cycles": 5411,
+    "mean_cycles": 59097.15625,
+    "per_rank": [
+     5411,
+     5788,
+     6042,
+     6178,
+     6263,
+     6305,
+     6382,
+     6432,
+     6458,
+     6551,
+     6577,
+     6695,
+     6772,
+     7407,
+     7602,
+     7831,
+     48926,
+     56958,
+     96631,
+     99378,
+     102026,
+     107214,
+     109961,
+     109961,
+     113013,
+     118201,
+     120947,
+     120947,
+     144751,
+     144751,
+     146375,
+     146375
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 146375
+     },
+     {
+      "rank": 30,
+      "cycles": 146375
+     },
+     {
+      "rank": 29,
+      "cycles": 144751
+     },
+     {
+      "rank": 28,
+      "cycles": 144751
+     },
+     {
+      "rank": 27,
+      "cycles": 120947
+     }
+    ],
+    "bytes_simulated": 141161488,
+    "bytes_removed": 23817200,
+    "n_circuits": 16
+   }
+  },
+  "cold16": {
+   "Congestion_Unaware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 159705,
+    "argmax_rank": 30,
+    "min_cycles": 4447,
+    "mean_cycles": 64878.59375,
+    "per_rank": [
+     4447,
+     4510,
+     6178,
+     6263,
+     6305,
+     6382,
+     6432,
+     6458,
+     6551,
+     6577,
+     6695,
+     6772,
+     7602,
+     7772,
+     7831,
+     9645,
+     42157,
+     42844,
+     102026,
+     107214,
+     109961,
+     113013,
+     118201,
+     120947,
+     144751,
+     144751,
+     146375,
+     146375,
+     155835,
+     155835,
+     159705,
+     159705
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 159705
+     },
+     {
+      "rank": 30,
+      "cycles": 159705
+     },
+     {
+      "rank": 29,
+      "cycles": 155835
+     },
+     {
+      "rank": 28,
+      "cycles": 155835
+     },
+     {
+      "rank": 27,
+      "cycles": 146375
+     }
+    ],
+    "bytes_simulated": 153707536,
+    "bytes_removed": 11271152,
+    "n_circuits": 16
+   }
+  }
+ }
+}

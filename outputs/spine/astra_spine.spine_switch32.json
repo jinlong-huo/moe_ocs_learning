@@ -1,0 +1,419 @@
+{
+ "workload": "logs/workload/qwen36",
+ "world_size": 32,
+ "source_model": "measured_packed_4",
+ "placement": "linear",
+ "unit": "one MoE layer, custom collective",
+ "network": "configs/astra_sim/eps_baseline_2tier.yml",
+ "note": "promoted pairs removed from the simulated fabric",
+ "results": {
+  "eps": {
+   "Congestion_Aware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 943174,
+    "argmax_rank": 30,
+    "min_cycles": 107309,
+    "mean_cycles": 505091.71875,
+    "per_rank": [
+     107309,
+     149117,
+     180625,
+     200689,
+     212059,
+     221899,
+     235939,
+     239142,
+     288808,
+     304372,
+     324438,
+     370290,
+     384861,
+     427203,
+     433077,
+     452227,
+     464969,
+     472981,
+     526233,
+     574830,
+     611984,
+     640290,
+     718945,
+     737027,
+     776703,
+     797531,
+     832851,
+     846053,
+     851772,
+     892363,
+     943174,
+     943174
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 943174
+     },
+     {
+      "rank": 30,
+      "cycles": 943174
+     },
+     {
+      "rank": 29,
+      "cycles": 892363
+     },
+     {
+      "rank": 28,
+      "cycles": 851772
+     },
+     {
+      "rank": 27,
+      "cycles": 846053
+     }
+    ],
+    "bytes_simulated": 164978688,
+    "bytes_removed": 0,
+    "n_circuits": 0
+   },
+   "Congestion_Unaware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 74811,
+    "argmax_rank": 30,
+    "min_cycles": 40098,
+    "mean_cycles": 52984.0625,
+    "per_rank": [
+     40098,
+     42386,
+     43607,
+     44370,
+     44370,
+     44751,
+     45057,
+     45438,
+     45896,
+     46125,
+     46964,
+     47193,
+     47880,
+     47956,
+     48261,
+     48490,
+     48948,
+     49253,
+     50855,
+     51236,
+     54975,
+     56424,
+     57340,
+     57950,
+     58484,
+     60697,
+     60926,
+     67106,
+     70310,
+     72522,
+     74811,
+     74811
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 74811
+     },
+     {
+      "rank": 30,
+      "cycles": 74811
+     },
+     {
+      "rank": 29,
+      "cycles": 72522
+     },
+     {
+      "rank": 28,
+      "cycles": 70310
+     },
+     {
+      "rank": 27,
+      "cycles": 67106
+     }
+    ],
+    "bytes_simulated": 164978688,
+    "bytes_removed": 0,
+    "n_circuits": 0
+   }
+  },
+  "hot16": {
+   "Congestion_Aware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 814256,
+    "argmax_rank": 30,
+    "min_cycles": 64871,
+    "mean_cycles": 441253.25,
+    "per_rank": [
+     64871,
+     76201,
+     108033,
+     147762,
+     176753,
+     227065,
+     242727,
+     247740,
+     268339,
+     273340,
+     276543,
+     335248,
+     341773,
+     361286,
+     407138,
+     431301,
+     464604,
+     467199,
+     489628,
+     492147,
+     509829,
+     563081,
+     602008,
+     610932,
+     638935,
+     669983,
+     706072,
+     742769,
+     769887,
+     778398,
+     814256,
+     814256
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 814256
+     },
+     {
+      "rank": 30,
+      "cycles": 814256
+     },
+     {
+      "rank": 29,
+      "cycles": 778398
+     },
+     {
+      "rank": 28,
+      "cycles": 769887
+     },
+     {
+      "rank": 27,
+      "cycles": 742769
+     }
+    ],
+    "bytes_simulated": 142210048,
+    "bytes_removed": 22768640,
+    "n_circuits": 16
+   },
+   "Congestion_Unaware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 60697,
+    "argmax_rank": 30,
+    "min_cycles": 32335,
+    "mean_cycles": 48551.28125,
+    "per_rank": [
+     32335,
+     33231,
+     36702,
+     40098,
+     42386,
+     43607,
+     44370,
+     44370,
+     44751,
+     45057,
+     45438,
+     45896,
+     46125,
+     46964,
+     47193,
+     47880,
+     47956,
+     48261,
+     48490,
+     48948,
+     49253,
+     50855,
+     51236,
+     54593,
+     54670,
+     56424,
+     57187,
+     58484,
+     59629,
+     59858,
+     60697,
+     60697
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 60697
+     },
+     {
+      "rank": 30,
+      "cycles": 60697
+     },
+     {
+      "rank": 29,
+      "cycles": 59858
+     },
+     {
+      "rank": 28,
+      "cycles": 59629
+     },
+     {
+      "rank": 27,
+      "cycles": 58484
+     }
+    ],
+    "bytes_simulated": 142210048,
+    "bytes_removed": 22768640,
+    "n_circuits": 16
+   }
+  },
+  "cold16": {
+   "Congestion_Aware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 901362,
+    "argmax_rank": 30,
+    "min_cycles": 42422,
+    "mean_cycles": 451735.0625,
+    "per_rank": [
+     42422,
+     49670,
+     127812,
+     136834,
+     156364,
+     169086,
+     179177,
+     192928,
+     246695,
+     255983,
+     284326,
+     329835,
+     340841,
+     364033,
+     388218,
+     389667,
+     406776,
+     432869,
+     486121,
+     515264,
+     552266,
+     591175,
+     668821,
+     669431,
+     718052,
+     737237,
+     780038,
+     781564,
+     804241,
+     855052,
+     901362,
+     901362
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 901362
+     },
+     {
+      "rank": 30,
+      "cycles": 901362
+     },
+     {
+      "rank": 29,
+      "cycles": 855052
+     },
+     {
+      "rank": 28,
+      "cycles": 804241
+     },
+     {
+      "rank": 27,
+      "cycles": 781564
+     }
+    ],
+    "bytes_simulated": 154756096,
+    "bytes_removed": 10222592,
+    "n_circuits": 16
+   },
+   "Congestion_Unaware": {
+    "ok": true,
+    "n_ranks_reported": 32,
+    "makespan_cycles": 74811,
+    "argmax_rank": 30,
+    "min_cycles": 28024,
+    "mean_cycles": 52175.8125,
+    "per_rank": [
+     28024,
+     28596,
+     43607,
+     44370,
+     44370,
+     44751,
+     45057,
+     45438,
+     45896,
+     46125,
+     46964,
+     47193,
+     47880,
+     47956,
+     48261,
+     48490,
+     48948,
+     49253,
+     50855,
+     51236,
+     54975,
+     56424,
+     57340,
+     57950,
+     58484,
+     60697,
+     60926,
+     67106,
+     70310,
+     72522,
+     74811,
+     74811
+    ],
+    "top5_stragglers": [
+     {
+      "rank": 31,
+      "cycles": 74811
+     },
+     {
+      "rank": 30,
+      "cycles": 74811
+     },
+     {
+      "rank": 29,
+      "cycles": 72522
+     },
+     {
+      "rank": 28,
+      "cycles": 70310
+     },
+     {
+      "rank": 27,
+      "cycles": 67106
+     }
+    ],
+    "bytes_simulated": 154756096,
+    "bytes_removed": 10222592,
+    "n_circuits": 16
+   }
+  }
+ }
+}

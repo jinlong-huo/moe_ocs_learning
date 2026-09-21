@@ -1,0 +1,32 @@
+{
+ "4": {
+  "eps_us": 2790.1,
+  "ocs_us": 2790.1,
+  "delta_pct": 0.0,
+  "ocs_share_pct": 18.2
+ },
+ "8": {
+  "eps_us": 2790.1,
+  "ocs_us": 2790.1,
+  "delta_pct": 0.0,
+  "ocs_share_pct": 18.2
+ },
+ "16": {
+  "eps_us": 3524.0,
+  "ocs_us": 2975.7,
+  "delta_pct": 15.56,
+  "ocs_share_pct": 18.2
+ },
+ "32": {
+  "eps_us": 6903.9,
+  "ocs_us": 5647.6,
+  "delta_pct": 18.2,
+  "ocs_share_pct": 18.2
+ },
+ "64": {
+  "eps_us": 13807.8,
+  "ocs_us": 11295.1,
+  "delta_pct": 18.2,
+  "ocs_share_pct": 18.2
+ }
+}

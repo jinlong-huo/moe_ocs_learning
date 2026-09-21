@@ -1,0 +1,110 @@
+{
+ "eps": {
+  "n_messages": 118,
+  "n_links": 118,
+  "makespan_ns": 3223471.0,
+  "makespan_us": 3223.471,
+  "straggler_rank": 3,
+  "straggler_ns": 3223471.0,
+  "tiers": {
+   "CROSS_POD": {
+    "busy_ns": 3223471.0,
+    "occupancy": 1.0,
+    "n_links": 64,
+    "largest_idle_gap_ns": 0.0
+   },
+   "INTRA_NODE": {
+    "busy_ns": 45024.5,
+    "occupancy": 0.014,
+    "n_links": 22,
+    "largest_idle_gap_ns": 0.0
+   },
+   "INTRA_POD": {
+    "busy_ns": 906005.4,
+    "occupancy": 0.2811,
+    "n_links": 32,
+    "largest_idle_gap_ns": 263370.2
+   }
+  },
+  "promoted_pairs": 0,
+  "promoted_bytes": 0,
+  "straggler_is_promoted": false,
+  "eps_core_idle_ns": 0.0
+ },
+ "hot16": {
+  "n_messages": 118,
+  "n_links": 118,
+  "makespan_ns": 2595045.4,
+  "makespan_us": 2595.045,
+  "straggler_rank": 3,
+  "straggler_ns": 2595045.4,
+  "tiers": {
+   "CROSS_POD": {
+    "busy_ns": 2194800.6,
+    "occupancy": 0.8458,
+    "n_links": 48,
+    "largest_idle_gap_ns": 57267.8
+   },
+   "INTRA_NODE": {
+    "busy_ns": 45024.5,
+    "occupancy": 0.0174,
+    "n_links": 22,
+    "largest_idle_gap_ns": 0.0
+   },
+   "INTRA_POD": {
+    "busy_ns": 886017.3,
+    "occupancy": 0.3414,
+    "n_links": 32,
+    "largest_idle_gap_ns": 159984.3
+   },
+   "OPTICAL": {
+    "busy_ns": 446365.8,
+    "occupancy": 0.172,
+    "n_links": 16,
+    "largest_idle_gap_ns": 143727.4
+   }
+  },
+  "promoted_pairs": 16,
+  "promoted_bytes": 31756288,
+  "straggler_is_promoted": false,
+  "eps_core_idle_ns": 400244.8
+ },
+ "cold16": {
+  "n_messages": 118,
+  "n_links": 118,
+  "makespan_ns": 2850796.8,
+  "makespan_us": 2850.797,
+  "straggler_rank": 3,
+  "straggler_ns": 2850796.8,
+  "tiers": {
+   "CROSS_POD": {
+    "busy_ns": 2722086.1,
+    "occupancy": 0.9549,
+    "n_links": 48,
+    "largest_idle_gap_ns": 5567.7
+   },
+   "INTRA_NODE": {
+    "busy_ns": 45024.5,
+    "occupancy": 0.0158,
+    "n_links": 22,
+    "largest_idle_gap_ns": 0.0
+   },
+   "INTRA_POD": {
+    "busy_ns": 906005.4,
+    "occupancy": 0.3178,
+    "n_links": 32,
+    "largest_idle_gap_ns": 263370.2
+   },
+   "OPTICAL": {
+    "busy_ns": 321138.6,
+    "occupancy": 0.1126,
+    "n_links": 16,
+    "largest_idle_gap_ns": 484351.0
+   }
+  },
+  "promoted_pairs": 16,
+  "promoted_bytes": 15028224,
+  "straggler_is_promoted": true,
+  "eps_core_idle_ns": 128710.7
+ }
+}

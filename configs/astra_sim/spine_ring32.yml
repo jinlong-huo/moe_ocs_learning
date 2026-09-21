@@ -1,0 +1,9 @@
+# 1-D ring "core" for the congestion-aware analytical backend.
+#
+# Same role as spine_switch32.yml, but the core is a ring of 32 ranks at the full
+# NIC rate: bisection bandwidth becomes the binding quantity, and contention
+# emerges from the traffic pattern rather than from a stated sigma.
+topology: [ Ring ]
+npus_count: [ 32 ]
+bandwidth: [ 50 ]
+latency: [ 12000 ]

@@ -1,0 +1,14 @@
+# 1-D "core" fabric for the CONGESTION-AWARE analytical backend.
+#
+# The congestion-aware backend rejects a multi-dimensional topology
+# ("only support 1-dim topology"), so the two-tier config cannot be used with it.
+# This config collapses the fabric to a single Switch shared by all ranks: every
+# inter-rank transfer crosses one switch at `bandwidth` GB/s, and the backend
+# derives contention from the actual traffic instead of a stated sigma.
+#
+# bandwidth is the UNDIVIDED NIC rate (FabricConfig.nic_gbytes_per_s = 50); the
+# per-pair share is what the simulation computes, not what we assert.
+topology: [ Switch ]
+npus_count: [ 32 ]
+bandwidth: [ 50 ]
+latency: [ 12000 ]
