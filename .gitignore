@@ -62,3 +62,20 @@ outputs/ocs_model_comparison_traces/
 # ASTRA-sim generated traffic traces (.et) are rebuilt from the source
 # workload by the astra_sim bridge; the summary JSONs beside them are tracked.
 outputs/astra_sim/et/
+
+# Bulk instrument output: raw per-run event streams, per-interval CSVs and the
+# regenerated figures. One command reproduces every one of them, and they are
+# megabytes of rows nobody reads (inference_net_trace.py's <tag>.gpu.csv is a
+# change log, spine_probe.py's *.messages.csv is a message list). The aggregate
+# JSON beside them is the tracked evidence a document quotes:
+#   outputs/net/inference_net_summary.json, sigma_sweep.json
+#   outputs/net_status*/gpu_state_summary.json
+#   outputs/spine/timeline_summary.json, astra_spine.*.json
+outputs/net/*.csv
+outputs/net/*.png
+outputs/net_status*/*.csv
+outputs/net_status*/raw/
+outputs/spine/*.csv
+outputs/spine/*.links.json
+outputs/spine/*.tiers.json
+outputs/spine/*.png
